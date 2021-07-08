@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <annotationProcessing>
+      <profile name="Gradle Imported" enabled="true">
+        <outputRelativeToContentRoot value="true" />
+        <processorPath useClasspath="false">
+          <entry name="$PROJECT_DIR$/../.gradle/caches/modules-2/files-2.1/org.apache.logging.log4j/log4j-core/2.14.1/9141212b8507ab50a45525b545b39d224614528b/log4j-core-2.14.1.jar" />
+          <entry name="$PROJECT_DIR$/../.gradle/caches/modules-2/files-2.1/org.apache.logging.log4j/log4j-api/2.14.1/cd8858fbbde69f46bce8db1152c18a43328aae78/log4j-api-2.14.1.jar" />
+        </processorPath>
+        <module name="Brilliant.Brilliant-Server.main" />
+      </profile>
+    </annotationProcessing>
+    <bytecodeTargetLevel target="16" />
+  </component>
+</project>

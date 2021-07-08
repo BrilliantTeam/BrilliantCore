@@ -1,0 +1,88 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: NCT skyouo <anwugame@gmail.com>
+Date: Thu, 8 Jul 2021 14:45:36 +0800
+Subject: [PATCH] 1.17.1 Update
+
+
+diff --git a/build.gradle.kts b/build.gradle.kts
+index d67e329cd4766cdd830aed8b82d24c7bd2e2e55d..89a1bf9b7472bf9faa8c4da15a19391c8e17b487 100644
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -95,7 +95,7 @@ tasks.jar {
+             "Implementation-Version" to "git-Brilliant-$implementationVersion", // Brilliant // Airplane // Tuinity
+             "Implementation-Vendor" to SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(Date()), // Paper
+             "Specification-Title" to "Bukkit",
+-            "Specification-Version" to project.version,
++            "Specification-Version" to "1.17-R0.1-SNAPSHOT",
+             "Specification-Vendor" to "Bukkit Team",
+             "Multi-Release" to "true", // Paper
+             "Git-Branch" to gitBranch, // Paper
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index 6b16e718ad7faf0feab5186fc76fd3fe0a96fdbb..4b8119175ea1bce9b0a1cf804fff1ebe7042b516 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -1727,9 +1727,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+         return this.levels.values();
+     }
+ 
+-    public String getServerVersion() {
+-        return SharedConstants.getCurrentVersion().getName();
+-    }
++    public String getServerVersion() { return SharedConstants.getCurrentVersion().getName(); }
+ 
+     public int getPlayerCount() {
+         return this.playerList.getPlayerCount();
+diff --git a/src/main/java/net/minecraft/server/level/ServerLevel.java b/src/main/java/net/minecraft/server/level/ServerLevel.java
+index 598e79b732f6a85083d68b9ecd8341868532de0b..3e974b386ad8ff5a81c812fe0a6c5f234a274c41 100644
+--- a/src/main/java/net/minecraft/server/level/ServerLevel.java
++++ b/src/main/java/net/minecraft/server/level/ServerLevel.java
+@@ -2552,7 +2552,7 @@ public class ServerLevel extends net.minecraft.world.level.Level implements Worl
+                 entity.setOrigin(entity.getOriginVector().toLocation(getWorld()));
+             }
+             // Paper end
+-            new com.destroystokyo.paper.event.entity.EntityAddToWorldEvent(entity.getBukkitEntity()).callEvent(); // Paper - fire while valid
++            new com.destroystokyo.paper.event.entity.EntityAddToWorldEvent(entity.getBukkitEntity()).callEvent(); // Paper - fire
+         }
+ 
+         public void onTrackingEnd(Entity entity) {
+diff --git a/src/main/java/net/minecraft/server/level/ThreadedLevelLightEngine.java b/src/main/java/net/minecraft/server/level/ThreadedLevelLightEngine.java
+index 73e1efe5bcec0522384118f0ca5e4d4f3e8bce82..380055022e28b856f4b004525bcab2587de6b093 100644
+--- a/src/main/java/net/minecraft/server/level/ThreadedLevelLightEngine.java
++++ b/src/main/java/net/minecraft/server/level/ThreadedLevelLightEngine.java
+@@ -127,6 +127,11 @@ public class ThreadedLevelLightEngine extends LevelLightEngine implements AutoCl
+             }
+         }
+ 
++        public final void remove(long chunkId) {
++            pendingTasks.removeIf(task -> task.chunkId == chunkId);
++            tryScheduleUpdate();
++        } // Brilliant - From Yatopia
++
+         public final boolean isEmpty() {
+             return this.size == 0 && this.pendingTasks.isEmpty();
+         }
+diff --git a/src/main/java/org/bukkit/craftbukkit/util/Versioning.java b/src/main/java/org/bukkit/craftbukkit/util/Versioning.java
+index 1788d79ea489e446d3d9f541693d4ba3dfc26015..29381b3782d61f6d4063738905ec2a6d6bdc887d 100644
+--- a/src/main/java/org/bukkit/craftbukkit/util/Versioning.java
++++ b/src/main/java/org/bukkit/craftbukkit/util/Versioning.java
+@@ -11,7 +11,7 @@ public final class Versioning {
+     public static String getBukkitVersion() {
+         String result = "Unknown-Version";
+ 
+-        InputStream stream = Bukkit.class.getClassLoader().getResourceAsStream("META-INF/maven/gg.airplane/airplane-api/pom.properties"); // Tuinity // Airplane
++        InputStream stream = Bukkit.class.getClassLoader().getResourceAsStream("META-INF/maven/tech.skyouo.brilliant/brilliant-api/pom.properties"); // Tuinity // Airplane
+         Properties properties = new Properties();
+ 
+         if (stream != null) {
+diff --git a/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java b/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
+index 15cf562c0658bf4912fd07bfb5f7828fec15a891..8a25bb5eb80f0e4444cd9a13d7dc6a4b69535467 100644
+--- a/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
++++ b/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
+@@ -18,6 +18,7 @@ import java.util.HashMap;
+ import java.util.List;
+ import java.util.Map;
+ import java.util.logging.Level;
++import java.util.logging.Logger;
+ 
+ public class BrilliantConfig {
+     private static final String HEADER = "This is the main configuration file for Brilliant. \n" +

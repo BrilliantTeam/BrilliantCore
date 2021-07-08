@@ -1,0 +1,259 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: NCT skyouo <anwugame@gmail.com>
+Date: Wed, 7 Jul 2021 11:28:01 +0800
+Subject: [PATCH] Brilliant Add Config
+
+
+diff --git a/build.gradle.kts b/build.gradle.kts
+index 9414a05bdd2581b6cd21805958f58ddb0d130046..d205ec1d037ef44d6b735caf7d3b42b34baea0e9 100644
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -35,7 +35,7 @@ repositories {
+ }
+ 
+ dependencies {
+-    implementation(project(":Airplane-API")) // Airplane // Tuinity
++    implementation(project(":Brilliant-API")) // Brilliant // Airplane // Tuinity
+     implementation("com.destroystokyo.paper:paper-mojangapi:1.16.5-R0.1-SNAPSHOT") // Tuinity
+     // Paper start
+     implementation("org.jline:jline-terminal-jansi:3.12.1")
+@@ -91,7 +91,7 @@ tasks.jar {
+         attributes(
+             "Main-Class" to "org.bukkit.craftbukkit.Main",
+             "Implementation-Title" to "CraftBukkit",
+-            "Implementation-Version" to "git-AirplanePurpur-$implementationVersion", // Airplane // Tuinity
++            "Implementation-Version" to "git-Brilliant-$implementationVersion", // Airplane // Tuinity
+             "Implementation-Vendor" to SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(Date()), // Paper
+             "Specification-Title" to "Bukkit",
+             "Specification-Version" to project.version,
+diff --git a/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java b/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
+index e6e45270674b10befaec9b5d48473afe4bee9ca2..acd96951cd47ad4dd1a67895d50d6672a0a19797 100644
+--- a/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
++++ b/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
+@@ -235,6 +235,8 @@ public class DedicatedServer extends MinecraftServer implements ServerInterface
+         gg.airplane.AirplaneConfig.load(); // Airplane - config
+         gg.airplane.commands.AirplaneCommands.init(); // Airplane - command
+ 
++        tech.skyouo.brilliant.BrilliantConfig.init(); // Brilliant
++
+         this.setPvpAllowed(dedicatedserverproperties.pvp);
+         this.setFlightAllowed(dedicatedserverproperties.allowFlight);
+         this.setResourcePack(dedicatedserverproperties.resourcePack, this.getPackHash());
+diff --git a/src/main/java/tech/skyouo/brilliant/BrilliantCommand.java b/src/main/java/tech/skyouo/brilliant/BrilliantCommand.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..569ad5dfd53be166d208ca4e07f891d853a9d299
+--- /dev/null
++++ b/src/main/java/tech/skyouo/brilliant/BrilliantCommand.java
+@@ -0,0 +1,57 @@
++package tech.skyouo.brilliant;
++
++import net.md_5.bungee.api.ChatColor;
++import net.minecraft.server.MinecraftServer;
++import org.bukkit.Bukkit;
++import org.bukkit.Location;
++import org.bukkit.command.Command;
++import org.bukkit.command.CommandSender;
++
++import java.util.Collections;
++import java.util.List;
++import java.util.stream.Collectors;
++import java.util.stream.Stream;
++
++public class BrilliantCommand extends Command {
++
++    public BrilliantCommand() {
++        super("brilliant");
++        this.description = "Brilliant related commands";
++        this.usageMessage = "/brilliant [reload | version]";
++        this.setPermission("bukkit.command.brilliant");
++    }
++
++    @Override
++    public List<String> tabComplete(CommandSender sender, String alias, String[] args, Location location) throws IllegalArgumentException {
++        if (args.length == 1) {
++            return Stream.of("reload", "version")
++                    .filter(arg -> arg.startsWith(args[0].toLowerCase()))
++                    .collect(Collectors.toList());
++        }
++        return Collections.emptyList();
++    }
++
++    @Override
++    public boolean execute(CommandSender sender, String commandLabel, String[] args) {
++        if (!testPermission(sender)) return true;
++        String prefix = ChatColor.of("#ffee07") + "" + ChatColor.BOLD + "Brilliant ★ " + ChatColor.of("#ffee68");
++
++        if (args.length != 1) {
++            sender.sendMessage(prefix + "Usage: " + usageMessage);
++            args = new String[]{"version"};
++        }
++
++        if (args[0].equalsIgnoreCase("reload")) {
++            MinecraftServer console = MinecraftServer.getServer();
++            BrilliantConfig.init();
++            console.server.reloadCount++;
++
++            Command.broadcastCommandMessage(sender, prefix + "Brilliant configuration has been reloaded.");
++        } else if (args[0].equalsIgnoreCase("version")) {
++            Command.broadcastCommandMessage(sender, prefix + "This server is running " + Bukkit.getName() + " version " + Bukkit.getVersion() + " (Implementing API version " + Bukkit.getBukkitVersion() + ")");
++        }
++
++        return true;
++    }
++}
++
+diff --git a/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java b/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..80d0675b8d8d137ad9a6ffd2cf9fa6ad3860617d
+--- /dev/null
++++ b/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
+@@ -0,0 +1,149 @@
++package tech.skyouo.brilliant;
++
++import com.google.common.base.Throwables;
++import com.google.common.collect.ImmutableMap;
++import net.minecraft.server.MinecraftServer;
++import org.bukkit.Bukkit;
++import org.bukkit.command.Command;
++import org.bukkit.configuration.ConfigurationSection;
++import org.bukkit.configuration.InvalidConfigurationException;
++import org.bukkit.configuration.file.YamlConfiguration;
++
++import java.io.File;
++import java.io.IOException;
++import java.lang.reflect.InvocationTargetException;
++import java.lang.reflect.Method;
++import java.lang.reflect.Modifier;
++import java.util.HashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.logging.Level;
++
++public class BrilliantConfig {
++    private static final String HEADER = "This is the main configuration file for Brilliant. \n" +
++            "If you set some config wrongly, the playing experience might *BE AFFECTED*, \n" +
++            "So think twice before you do it.";
++    private static File CONFIG_FILE;
++    public static YamlConfiguration config;
++
++    private static Map<String, Command> commands;
++
++    static int version;
++
++    public static void init() {
++        File configFile = new File("brilliant.yml");
++        CONFIG_FILE = configFile;
++        config = new YamlConfiguration();
++        try {
++            config.load(CONFIG_FILE);
++        } catch (IOException ignore) {
++        } catch (InvalidConfigurationException ex) {
++            Bukkit.getLogger().log(Level.SEVERE, "Could not load brilliant.yml, please correct your syntax errors", ex);
++            throw Throwables.propagate(ex);
++        }
++        config.options().header(HEADER);
++        config.options().copyDefaults(true);
++
++        commands = new HashMap<>();
++        commands.put("brilliant", new BrilliantCommand());
++        registerCommands();
++
++        version = getInt("config-version", 1);
++        set("config-version", 1);
++
++        readConfig(BrilliantConfig.class, null);
++    }
++
++    protected static void log(String s) {
++        log(Level.INFO, s);
++    }
++
++    protected static void log(Level level, String s) {
++        Bukkit.getLogger().log(level, s);
++    }
++
++    public static void registerCommands() {
++        for (Map.Entry<String, Command> entry : commands.entrySet()) {
++            MinecraftServer.getServer().server.getCommandMap().register(entry.getKey(), "Brilliant", entry.getValue());
++        }
++    }
++
++    static void readConfig(Class<?> clazz, Object instance) {
++        for (Method method : clazz.getDeclaredMethods()) {
++            if (Modifier.isPrivate(method.getModifiers())) {
++                if (method.getParameterTypes().length == 0 && method.getReturnType() == Void.TYPE) {
++                    try {
++                        method.setAccessible(true);
++                        method.invoke(instance);
++                    } catch (InvocationTargetException ex) {
++                        throw Throwables.propagate(ex.getCause());
++                    } catch (Exception ex) {
++                        Bukkit.getLogger().log(Level.SEVERE, "Error invoking " + method, ex);
++                    }
++                }
++            }
++        }
++
++        try {
++            config.save(CONFIG_FILE);
++        } catch (IOException ex) {
++            Bukkit.getLogger().log(Level.SEVERE, "Could not save " + CONFIG_FILE, ex);
++        }
++    }
++
++    private static void set(String path, Object val) {
++        config.addDefault(path, val);
++        config.set(path, val);
++    }
++
++    private static String getString(String path, String def) {
++        config.addDefault(path, def);
++        return config.getString(path, config.getString(path));
++    }
++
++    private static boolean getBoolean(String path, boolean def) {
++        config.addDefault(path, def);
++        return config.getBoolean(path, config.getBoolean(path));
++    }
++
++    private static double getDouble(String path, double def) {
++        config.addDefault(path, def);
++        return config.getDouble(path, config.getDouble(path));
++    }
++
++    private static int getInt(String path, int def) {
++        config.addDefault(path, def);
++        return config.getInt(path, config.getInt(path));
++    }
++
++    private static <T> List getList(String path, T def) {
++        config.addDefault(path, def);
++        return config.getList(path, config.getList(path));
++    }
++
++    static Map<String, Object> getMap(String path, Map<String, Object> def) {
++        if (def != null && config.getConfigurationSection(path) == null) {
++            config.addDefault(path, def);
++            return def;
++        }
++        return toMap(config.getConfigurationSection(path));
++    }
++
++    private static Map<String, Object> toMap(ConfigurationSection section) {
++        ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
++        if (section != null) {
++            for (String key : section.getKeys(false)) {
++                Object obj = section.get(key);
++                if (obj != null) {
++                    builder.put(key, obj instanceof ConfigurationSection val ? toMap(val) : obj);
++                }
++            }
++        }
++        return builder.build();
++    }
++
++    public static boolean asyncPathfinder = true;
++    private static void asyncPathfinder() {
++        asyncPathfinder = getBoolean("async-pathfinder", true);
++    }
++}

@@ -1,0 +1,30 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: NCT skyouo <anwugame@gmail.com>
+Date: Thu, 8 Jul 2021 12:31:30 +0800
+Subject: [PATCH] Yatopia Optimize TileEntity Load/Unload
+
+
+diff --git a/src/main/java/net/minecraft/world/level/Level.java b/src/main/java/net/minecraft/world/level/Level.java
+index 27674fb28825b48eee86b93d6bbd1e7af94c0fe0..9180b22675fd833a9a569997a0cb7c512b59de25 100644
+--- a/src/main/java/net/minecraft/world/level/Level.java
++++ b/src/main/java/net/minecraft/world/level/Level.java
+@@ -98,6 +98,7 @@ import org.bukkit.craftbukkit.block.data.CraftBlockData;
+ import org.bukkit.craftbukkit.util.CraftNamespacedKey;
+ import org.bukkit.event.block.BlockPhysicsEvent;
+ import org.bukkit.event.world.GenericGameEvent;
++import tech.skyouo.brilliant.HashedList;
+ // CraftBukkit end
+ 
+ public abstract class Level implements LevelAccessor, AutoCloseable {
+@@ -115,8 +116,9 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
+     public static final int TICKS_PER_DAY = 24000;
+     public static final int MAX_ENTITY_SPAWN_Y = 20000000;
+     public static final int MIN_ENTITY_SPAWN_Y = -20000000;
+-    protected final List<TickingBlockEntity> blockEntityTickers = Lists.newArrayList(); public final int getTotalTileEntityTickers() { return this.blockEntityTickers.size(); } // Paper
+-    private final List<TickingBlockEntity> pendingBlockEntityTickers = Lists.newArrayList();
++    protected final List<TickingBlockEntity> blockEntityTickers = HashedList.wrapper(Lists.newArrayList()); // Brilliant - From Yatopia
++    private final List<TickingBlockEntity> pendingBlockEntityTickers = HashedList.wrapper(Lists.newArrayList()); // Brilliant - From Yatopia
++    public final int getTotalTileEntityTickers() { return this.blockEntityTickers.size(); } // Paper // Brilliant - Fix Indentation
+     private boolean tickingBlockEntities;
+     public final Thread thread;
+     private final boolean isDebug;

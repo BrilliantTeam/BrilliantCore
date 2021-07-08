@@ -1,0 +1,48 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: NCT skyouo <anwugame@gmail.com>
+Date: Thu, 8 Jul 2021 18:08:51 +0800
+Subject: [PATCH] Replace parknano with thread sleep
+
+
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index 5745b5b632d442d8c73e945b6e4577d77abeeffc..01e8b280e3efad0c5bdbba3502b6c65776c428ae 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -1233,7 +1233,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+ 
+                         if (this.server.getWarnOnOverload()) // CraftBukkit
+                             MinecraftServer.LOGGER.warn("Can't keep up! Is the server overloaded? Running {}ms or {} ticks behind", i, j);
+-                        this.nextTickTime -= j * MS_PER_TICK; // Brilliant - TPS unlock
++                        this.nextTickTime += j * MS_PER_TICK; // Brilliant - TPS unlock
+                         this.lastOverloadWarning = this.nextTickTime;
+                     }
+ 
+@@ -1244,8 +1244,8 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+                         java.math.BigDecimal currentTps = TPS_BASE.divide(new java.math.BigDecimal(diff), 30, java.math.RoundingMode.HALF_UP);
+                         // Brilliant Start - Dynamic Tick Control
+                         if (currentTps.doubleValue() < (TPS * 0.8) && MSPT > 0 && dynamicTickControl) {
+-                            MSPT -= ((1000 / TPS) * 0.6) < MS_PER_TICK ? 0 : 4;
+-                        } else if (currentTps.doubleValue() < (TPS * 0.8) && MSPT < 0  && dynamicTickControl) {
++                            MSPT -= 4;
++                        } else if ((currentTps.doubleValue() < (TPS * 0.5) || MSPT < 0)  && dynamicTickControl) {
+                             MSPT = 0;
+                         } else {
+                             MSPT = MS_PER_TICK;
+diff --git a/src/main/java/net/minecraft/util/thread/BlockableEventLoop.java b/src/main/java/net/minecraft/util/thread/BlockableEventLoop.java
+index dcce05d2f4ab16424db4ab103a12188e207a457b..459adf0e8d4ec24dc339b69966f730155adcfcee 100644
+--- a/src/main/java/net/minecraft/util/thread/BlockableEventLoop.java
++++ b/src/main/java/net/minecraft/util/thread/BlockableEventLoop.java
+@@ -141,7 +141,12 @@ public abstract class BlockableEventLoop<R extends Runnable> implements Profiler
+ 
+     protected void waitForTasks() {
+         Thread.yield();
+-        LockSupport.parkNanos("waiting for tasks", 100000L);
++        try {
++            Thread.sleep(0, 100000);
++        } catch (InterruptedException e) {
++            e.printStackTrace();
++        }
++        // LockSupport.parkNanos("waiting for tasks", 100000L);
+     }
+ 
+     protected void doRunTask(R task) {

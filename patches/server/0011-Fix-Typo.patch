@@ -1,0 +1,36 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: NCT skyouo <anwugame@gmail.com>
+Date: Thu, 8 Jul 2021 16:41:18 +0800
+Subject: [PATCH] Fix Typo
+
+
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index 4b8119175ea1bce9b0a1cf804fff1ebe7042b516..5745b5b632d442d8c73e945b6e4577d77abeeffc 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -1744,7 +1744,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+     @DontObfuscate
+     public String getServerModName() {
+         String purpurName = net.pl3x.purpur.PurpurConfig.serverModName;
+-        return purpurName.equals("Purpur") ? "Braillint" : purpurName; // Brilliant // Airplane // Purpur // Tuinity // Paper // Spigot // CraftBukkit
++        return purpurName.equals("Purpur") ? "Brilliant" : purpurName; // Brilliant // Airplane // Purpur // Tuinity // Paper // Spigot // CraftBukkit
+     }
+ 
+     public SystemReport fillSystemReport(SystemReport details) {
+diff --git a/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java b/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
+index 8a25bb5eb80f0e4444cd9a13d7dc6a4b69535467..25e3d45863ddd90515e73fe1d5963b228f9849ce 100644
+--- a/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
++++ b/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
+@@ -152,6 +152,11 @@ public class BrilliantConfig {
+ 
+     public static boolean dynamicTickControl = true;
+     private static void dynamicTickControl() {
+-        dynamicTickControl = getBoolean("dynamic-tick-control", true);
++        dynamicTickControl = getBoolean("dynamic-tick-control.enable", true);
++    }
++
++    public static int dynamicTickControlValue = 4;
++    private static void dynamicTickControlValue() {
++        dynamicTickControlValue = getInt("dynamic-tick-control.value", 4);
+     }
+ }

@@ -1,0 +1,259 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: NCT skyouo <anwugame@gmail.com>
+Date: Wed, 7 Jul 2021 21:51:02 +0800
+Subject: [PATCH] Yatopia Optimize Villagers
+
+
+diff --git a/src/main/java/net/minecraft/world/entity/ai/behavior/AcquirePoi.java b/src/main/java/net/minecraft/world/entity/ai/behavior/AcquirePoi.java
+index 68188f3322a9af8eac423afc5f87bc4f88f4a5bb..6cc318a99baf5d72258d4ef5613c0ae2977288fd 100644
+--- a/src/main/java/net/minecraft/world/entity/ai/behavior/AcquirePoi.java
++++ b/src/main/java/net/minecraft/world/entity/ai/behavior/AcquirePoi.java
+@@ -58,7 +58,8 @@ public class AcquirePoi extends Behavior<PathfinderMob> {
+         if (this.onlyIfAdult && entity.isBaby()) {
+             return false;
+         } else if (this.nextScheduledStart == 0L) {
+-            this.nextScheduledStart = entity.level.getGameTime() + (long)world.random.nextInt(20);
++            // this.nextScheduledStart = entity.level.getGameTime() + (long)world.random.nextInt(20);
++            this.nextScheduledStart = entity.level.getGameTime() + (long) java.util.concurrent.ThreadLocalRandom.current().nextInt(20); // Brilliant - From Yatopia
+             return false;
+         } else {
+             return world.getGameTime() >= this.nextScheduledStart;
+@@ -67,7 +68,7 @@ public class AcquirePoi extends Behavior<PathfinderMob> {
+ 
+     @Override
+     protected void start(ServerLevel world, PathfinderMob entity, long time) {
+-        this.nextScheduledStart = time + 20L + (long)world.getRandom().nextInt(20);
++        this.nextScheduledStart = time + 20L + (long) java.util.concurrent.ThreadLocalRandom.current().nextInt(20); // Brilliant - From Yatopia
+         if (entity.getNavigation().isStuck()) this.nextScheduledStart += 200L; // Airplane - wait an additional 10s to check again if they're stuck
+         PoiManager poiManager = world.getPoiManager();
+         this.batchCache.long2ObjectEntrySet().removeIf((entry) -> {
+@@ -75,14 +76,21 @@ public class AcquirePoi extends Behavior<PathfinderMob> {
+         });
+         Predicate<BlockPos> predicate = (blockPos) -> {
+             AcquirePoi.JitteredLinearRetry jitteredLinearRetry = this.batchCache.get(blockPos.asLong());
++            // Brilliant Start - From Yatopia
+             if (jitteredLinearRetry == null) {
+-                return true;
++                return world.getLevel().getChunkIfLoaded(blockPos.getX() >> 4, blockPos.getZ() >> 4) != null;
+             } else if (!jitteredLinearRetry.shouldRetry(time)) {
+                 return false;
+             } else {
+-                jitteredLinearRetry.markAttempt(time);
++                int chunkX = blockPos.getX() >> 4;
++                int chunkZ = blockPos.getZ() >> 4;
++                if (world.getLevel().getChunkIfLoaded(chunkX, chunkZ) != null) {
++                    jitteredLinearRetry.markAttempt(this.nextScheduledStart);
++                    return true;
++                }
+                 return true;
+             }
++            // Brilliant End
+         };
+         // Tuinity start - optimise POI access
+         java.util.List<BlockPos> poiposes = new java.util.ArrayList<>();
+@@ -106,7 +114,7 @@ public class AcquirePoi extends Behavior<PathfinderMob> {
+         } else {
+             for(BlockPos blockPos2 : set) {
+                 this.batchCache.computeIfAbsent(blockPos2.asLong(), (m) -> {
+-                    return new AcquirePoi.JitteredLinearRetry(entity.level.random, time);
++                    return new AcquirePoi.JitteredLinearRetry(java.util.concurrent.ThreadLocalRandom.current(), time);
+                 });
+             }
+         }
+diff --git a/src/main/java/net/minecraft/world/entity/ai/village/poi/PoiType.java b/src/main/java/net/minecraft/world/entity/ai/village/poi/PoiType.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..e7471f94d93596a8c0d0b0e78d8512d0f73c7e90
+--- /dev/null
++++ b/src/main/java/net/minecraft/world/entity/ai/village/poi/PoiType.java
+@@ -0,0 +1,178 @@
++package net.minecraft.world.entity.ai.village.poi;
++
++import com.google.common.base.Suppliers;
++import com.google.common.collect.ImmutableList;
++import com.google.common.collect.ImmutableSet;
++import com.google.common.collect.Maps;
++import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
++import java.util.Map;
++import java.util.Optional;
++import java.util.Set;
++import java.util.function.Predicate;
++import java.util.function.Supplier;
++import java.util.stream.Collectors;
++import net.minecraft.Util;
++import net.minecraft.core.Registry;
++import net.minecraft.resources.ResourceLocation;
++import net.minecraft.world.entity.npc.VillagerProfession;
++import net.minecraft.world.level.block.BedBlock;
++import net.minecraft.world.level.block.Block;
++import net.minecraft.world.level.block.Blocks;
++import net.minecraft.world.level.block.state.BlockState;
++import net.minecraft.world.level.block.state.properties.BedPart;
++
++public class PoiType {
++    public static Set<PoiType> professionCache; // Yatopia
++
++    private static final Supplier<Set<PoiType>> ALL_JOB_POI_TYPES = Suppliers.memoize(() -> {
++        return (Set)Registry.VILLAGER_PROFESSION.stream().map(VillagerProfession::getJobPoiType).collect(Collectors.toSet());
++    });
++    public static final Predicate<PoiType> ALL_JOBS = (poiType) -> {
++        if (professionCache == null) {
++            professionCache = new java.util.HashSet<>();
++            for (VillagerProfession profession : Registry.VILLAGER_PROFESSION) {
++                professionCache.add(profession.getJobPoiType());
++            }
++        }
++        return professionCache.contains(poiType);
++    };
++
++    public static final Predicate<PoiType> ALL = (poiType) -> {
++        return true;
++    };
++    private static final Set<BlockState> BEDS;
++    private static final Set<BlockState> CAULDRONS;
++    private static final Map<BlockState, PoiType> TYPE_BY_STATE;
++    public static final PoiType UNEMPLOYED;
++    public static final PoiType ARMORER;
++    public static final PoiType BUTCHER;
++    public static final PoiType CARTOGRAPHER;
++    public static final PoiType CLERIC;
++    public static final PoiType FARMER;
++    public static final PoiType FISHERMAN;
++    public static final PoiType FLETCHER;
++    public static final PoiType LEATHERWORKER;
++    public static final PoiType LIBRARIAN;
++    public static final PoiType MASON;
++    public static final PoiType NITWIT;
++    public static final PoiType SHEPHERD;
++    public static final PoiType TOOLSMITH;
++    public static final PoiType WEAPONSMITH;
++    public static final PoiType HOME;
++    public static final PoiType MEETING;
++    public static final PoiType BEEHIVE;
++    public static final PoiType BEE_NEST;
++    public static final PoiType NETHER_PORTAL;
++    public static final PoiType LODESTONE;
++    public static final PoiType LIGHTNING_ROD;
++    protected static final Set<BlockState> ALL_STATES;
++    private final String name;
++    private final Set<BlockState> matchingStates;
++    private final int maxTickets;
++    private final Predicate<PoiType> predicate;
++    private final int validRange;
++
++    private static Set<BlockState> getBlockStates(Block block) {
++        return ImmutableSet.copyOf(block.getStateDefinition().getPossibleStates());
++    }
++
++    private PoiType(String id, Set<BlockState> blockStates, int ticketCount, Predicate<PoiType> completionCondition, int searchDistance) {
++        this.name = id;
++        this.matchingStates = ImmutableSet.copyOf(blockStates);
++        this.maxTickets = ticketCount;
++        this.predicate = completionCondition;
++        this.validRange = searchDistance;
++    }
++
++    private PoiType(String id, Set<BlockState> blockStates, int ticketCount, int searchDistance) {
++        this.name = id;
++        this.matchingStates = ImmutableSet.copyOf(blockStates);
++        this.maxTickets = ticketCount;
++        this.predicate = (poiType) -> {
++            return poiType == this;
++        };
++        this.validRange = searchDistance;
++    }
++
++    public String getName() {
++        return this.name;
++    }
++
++    public int getMaxTickets() {
++        return this.maxTickets;
++    }
++
++    public Predicate<PoiType> getPredicate() {
++        return this.predicate;
++    }
++
++    public boolean is(BlockState state) {
++        return this.matchingStates.contains(state);
++    }
++
++    public int getValidRange() {
++        return this.validRange;
++    }
++
++    @Override
++    public String toString() {
++        return this.name;
++    }
++
++    private static PoiType register(String id, Set<BlockState> workStationStates, int ticketCount, int searchDistance) {
++        return registerBlockStates((PoiType)Registry.register(Registry.POINT_OF_INTEREST_TYPE, new ResourceLocation(id), new PoiType(id, workStationStates, ticketCount, searchDistance)));
++    }
++
++    private static PoiType register(String id, Set<BlockState> workStationStates, int ticketCount, Predicate<PoiType> completionCondition, int searchDistance) {
++        return registerBlockStates((PoiType)Registry.register(Registry.POINT_OF_INTEREST_TYPE, new ResourceLocation(id), new PoiType(id, workStationStates, ticketCount, completionCondition, searchDistance)));
++    }
++
++    private static PoiType registerBlockStates(PoiType poiType) {
++        poiType.matchingStates.forEach((blockState) -> {
++            PoiType poiType2 = (PoiType)TYPE_BY_STATE.put(blockState, poiType);
++            if (poiType2 != null) {
++                throw (IllegalStateException)Util.pauseInIde(new IllegalStateException(String.format("%s is defined in too many tags", blockState)));
++            }
++        });
++        return poiType;
++    }
++
++    public static Optional<PoiType> forState(BlockState state) {
++        return Optional.ofNullable((PoiType)TYPE_BY_STATE.get(state));
++    }
++
++    static {
++        BEDS = (Set)ImmutableList.of(Blocks.RED_BED, Blocks.BLACK_BED, Blocks.BLUE_BED, Blocks.BROWN_BED, Blocks.CYAN_BED, Blocks.GRAY_BED, Blocks.GREEN_BED, Blocks.LIGHT_BLUE_BED, Blocks.LIGHT_GRAY_BED, Blocks.LIME_BED, Blocks.MAGENTA_BED, Blocks.ORANGE_BED, new Block[]{Blocks.PINK_BED, Blocks.PURPLE_BED, Blocks.WHITE_BED, Blocks.YELLOW_BED}).stream().flatMap((block) -> {
++            return block.getStateDefinition().getPossibleStates().stream();
++        }).filter((state) -> {
++            return state.getValue(BedBlock.PART) == BedPart.HEAD;
++        }).collect(ImmutableSet.toImmutableSet());
++        CAULDRONS = (Set)ImmutableList.of(Blocks.CAULDRON, Blocks.LAVA_CAULDRON, Blocks.WATER_CAULDRON, Blocks.POWDER_SNOW_CAULDRON).stream().flatMap((block) -> {
++            return block.getStateDefinition().getPossibleStates().stream();
++        }).collect(ImmutableSet.toImmutableSet());
++        TYPE_BY_STATE = Maps.newHashMap();
++        UNEMPLOYED = register("unemployed", ImmutableSet.of(), 1, ALL_JOBS, 1);
++        ARMORER = register("armorer", getBlockStates(Blocks.BLAST_FURNACE), 1, 1);
++        BUTCHER = register("butcher", getBlockStates(Blocks.SMOKER), 1, 1);
++        CARTOGRAPHER = register("cartographer", getBlockStates(Blocks.CARTOGRAPHY_TABLE), 1, 1);
++        CLERIC = register("cleric", getBlockStates(Blocks.BREWING_STAND), 1, 1);
++        FARMER = register("farmer", getBlockStates(Blocks.COMPOSTER), 1, 1);
++        FISHERMAN = register("fisherman", getBlockStates(Blocks.BARREL), 1, 1);
++        FLETCHER = register("fletcher", getBlockStates(Blocks.FLETCHING_TABLE), 1, 1);
++        LEATHERWORKER = register("leatherworker", CAULDRONS, 1, 1);
++        LIBRARIAN = register("librarian", getBlockStates(Blocks.LECTERN), 1, 1);
++        MASON = register("mason", getBlockStates(Blocks.STONECUTTER), 1, 1);
++        NITWIT = register("nitwit", ImmutableSet.of(), 1, 1);
++        SHEPHERD = register("shepherd", getBlockStates(Blocks.LOOM), 1, 1);
++        TOOLSMITH = register("toolsmith", getBlockStates(Blocks.SMITHING_TABLE), 1, 1);
++        WEAPONSMITH = register("weaponsmith", getBlockStates(Blocks.GRINDSTONE), 1, 1);
++        HOME = register("home", BEDS, 1, 1);
++        MEETING = register("meeting", getBlockStates(Blocks.BELL), 32, 6);
++        BEEHIVE = register("beehive", getBlockStates(Blocks.BEEHIVE), 0, 1);
++        BEE_NEST = register("bee_nest", getBlockStates(Blocks.BEE_NEST), 0, 1);
++        NETHER_PORTAL = register("nether_portal", getBlockStates(Blocks.NETHER_PORTAL), 0, 1);
++        LODESTONE = register("lodestone", getBlockStates(Blocks.LODESTONE), 0, 1);
++        LIGHTNING_ROD = register("lightning_rod", getBlockStates(Blocks.LIGHTNING_ROD), 0, 1);
++        ALL_STATES = new ObjectOpenHashSet(TYPE_BY_STATE.keySet());
++    }
++}
+\ No newline at end of file
+diff --git a/src/main/java/net/minecraft/world/entity/npc/VillagerProfession.java b/src/main/java/net/minecraft/world/entity/npc/VillagerProfession.java
+index 9050cd25663c71197c597aac0ab2e6121b76b13b..c749c6d6adc62c76e6818ae24d79b4ec223c322e 100644
+--- a/src/main/java/net/minecraft/world/entity/npc/VillagerProfession.java
++++ b/src/main/java/net/minecraft/world/entity/npc/VillagerProfession.java
+@@ -74,6 +74,7 @@ public class VillagerProfession {
+     }
+ 
+     static VillagerProfession register(String id, PoiType workStation, ImmutableSet<Item> gatherableItems, ImmutableSet<Block> secondaryJobSites, @Nullable SoundEvent workSound) {
++        PoiType.professionCache = null; // Brilliant - From Yatopia
+         return Registry.register(Registry.VILLAGER_PROFESSION, new ResourceLocation(id), new VillagerProfession(id, workStation, gatherableItems, secondaryJobSites, workSound));
+     }
+ }

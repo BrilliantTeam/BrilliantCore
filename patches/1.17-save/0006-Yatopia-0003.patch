@@ -1,0 +1,145 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: NCT skyouo <anwugame@gmail.com>
+Date: Wed, 7 Jul 2021 23:37:38 +0800
+Subject: [PATCH] Yatopia 0003
+
+
+diff --git a/build.gradle.kts b/build.gradle.kts
+index d205ec1d037ef44d6b735caf7d3b42b34baea0e9..a151601af64c1e36d67ce28345c3773a4fc0a96d 100644
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -51,6 +51,8 @@ dependencies {
+     // Paper end
+     implementation("org.apache.logging.log4j:log4j-iostreams:2.14.1") // Paper
+     implementation("org.apache.logging.log4j:log4j-api:2.14.1") // Paper
++    implementation("org.apache.commons:commons-math3:3.6.1") // Brilliant
++    implementation("org.apache.commons:commons-rng-core:1.3") // Brilliant
+     implementation("org.ow2.asm:asm:9.1")
+     implementation("com.googlecode.json-simple:json-simple:1.1.1") {
+         // This includes junit transitively for whatever reason
+diff --git a/src/main/java/net/minecraft/world/level/block/entity/FurnaceBlockEntity.java b/src/main/java/net/minecraft/world/level/block/entity/FurnaceBlockEntity.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..fe66c42084da7039679dc1470a3800365d0d80ff
+--- /dev/null
++++ b/src/main/java/net/minecraft/world/level/block/entity/FurnaceBlockEntity.java
+@@ -0,0 +1,2 @@
++package net.minecraft.world.level.block.entity;public class FurnaceBlockEntity {
++}
+diff --git a/src/main/java/tech/skyouo/brilliant/Constants.java b/src/main/java/tech/skyouo/brilliant/Constants.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..d8eb6090e2dfb5a9f0211903b8a0641a8b9b8c61
+--- /dev/null
++++ b/src/main/java/tech/skyouo/brilliant/Constants.java
+@@ -0,0 +1,8 @@
++package tech.skyouo.brilliant;
++
++// Import from Yatopia
++
++public class Constants {
++    public static final int[] EMPTY_ARRAY = new int[0];
++    public static final int[] ZERO_ARRAY = new int[]{0};
++}
+diff --git a/src/main/java/tech/skyouo/brilliant/FastRandom.java b/src/main/java/tech/skyouo/brilliant/FastRandom.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..8d220e49dd5281102614abaec0d5562986535fbb
+--- /dev/null
++++ b/src/main/java/tech/skyouo/brilliant/FastRandom.java
+@@ -0,0 +1,57 @@
++package tech.skyouo.brilliant;
++
++// Import from Yatopia
++import org.apache.commons.rng.core.source64.XoRoShiRo128PlusPlus;
++
++import java.util.Random;
++import java.util.SplittableRandom;
++
++public class FastRandom extends Random {
++    private XoRoShiRo128PlusPlus random;
++    public FastRandom() {
++        super();
++        SplittableRandom randomseed = new SplittableRandom();
++        this.random = new XoRoShiRo128PlusPlus(randomseed.nextLong(), randomseed.nextLong());
++    }
++
++    @Override
++    public boolean nextBoolean() {
++        return random.nextBoolean();
++    }
++
++    @Override
++    public int nextInt() {
++        return random.nextInt();
++    }
++
++    @Override
++    public float nextFloat() {
++        return (float) random.nextDouble();
++    }
++
++    @Override
++    public double nextDouble() {
++        return random.nextDouble();
++    }
++
++    @Override
++    public synchronized void setSeed(long seed) {
++        SplittableRandom randomseed = new SplittableRandom(seed);
++        this.random = new XoRoShiRo128PlusPlus(randomseed.nextLong(), randomseed.nextLong());
++    }
++
++    @Override
++    public void nextBytes(byte[] bytes) {
++        random.nextBytes(bytes);
++    }
++
++    @Override
++    public int nextInt(int bound) {
++        return random.nextInt(bound);
++    }
++
++    @Override
++    public long nextLong() {
++        return random.nextLong();
++    }
++}
+diff --git a/src/main/java/tech/skyouo/brilliant/HashedList.java b/src/main/java/tech/skyouo/brilliant/HashedList.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..459e5295aad4652f35936911d6e4be027f829718
+--- /dev/null
++++ b/src/main/java/tech/skyouo/brilliant/HashedList.java
+@@ -0,0 +1,2 @@
++package tech.skyouo.brilliant;public class HashedList {
++}
+diff --git a/src/main/java/tech/skyouo/brilliant/TimeUtils.java b/src/main/java/tech/skyouo/brilliant/TimeUtils.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..39c4600e93df07d14f629ac585863575f1fe4421
+--- /dev/null
++++ b/src/main/java/tech/skyouo/brilliant/TimeUtils.java
+@@ -0,0 +1,27 @@
++package tech.skyouo.brilliant;
++
++import java.util.concurrent.TimeUnit;
++
++public class TimeUtils {
++
++    public static String getFriendlyName(TimeUnit unit) {
++        switch (unit) {
++            case NANOSECONDS:
++                return "ns";
++            case MILLISECONDS:
++                return "ms";
++            case MICROSECONDS:
++                return "micros";
++            case SECONDS:
++                return "s";
++            case MINUTES:
++                return "m";
++            case DAYS:
++                return "d";
++            case HOURS:
++                return "h";
++            default:
++                throw new AssertionError();
++        }
++    }
++}

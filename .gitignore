@@ -1,0 +1,7 @@
+Brilliant-API/*
+Brilliant-Server/*
+build/*
+.gradle/*
+gradle/*
+run/*
+*.jar

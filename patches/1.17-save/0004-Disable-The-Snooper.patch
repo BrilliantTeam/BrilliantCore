@@ -1,0 +1,28 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: NCT skyouo <anwugame@gmail.com>
+Date: Wed, 7 Jul 2021 19:58:25 +0800
+Subject: [PATCH] Disable The Snooper
+
+
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index f808ef7598b200f41468bc6b7e1ad87630d36ab7..36cfc19d82e2cd555ec5d793c92b012905a9190e 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -1527,14 +1527,15 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+         //} // Paper
+ 
+         this.profiler.push("snooper");
++        // Brilliant - Diable Snooper
++        /*
+         if (((DedicatedServer) this).getProperties().snooperEnabled && !this.snooper.isStarted() && this.tickCount > 100) { // Spigot
+             this.snooper.start();
+         }
+ 
+         if (((DedicatedServer) this).getProperties().snooperEnabled && this.tickCount % 6000 == 0) { // Spigot
+             this.snooper.prepare();
+-        }
+-
++        }*/
+         this.profiler.pop();
+ 
+         // Paper start - move executeAll() into full server tick timing

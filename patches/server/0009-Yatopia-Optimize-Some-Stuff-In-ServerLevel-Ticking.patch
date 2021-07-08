@@ -1,0 +1,87 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: NCT skyouo <anwugame@gmail.com>
+Date: Thu, 8 Jul 2021 13:37:49 +0800
+Subject: [PATCH] Yatopia Optimize Some Stuff In ServerLevel Ticking
+
+
+diff --git a/src/main/java/net/minecraft/server/level/ServerLevel.java b/src/main/java/net/minecraft/server/level/ServerLevel.java
+index 4caa8a065d33247e13baa2eea633cd69ce83caf7..598e79b732f6a85083d68b9ecd8341868532de0b 100644
+--- a/src/main/java/net/minecraft/server/level/ServerLevel.java
++++ b/src/main/java/net/minecraft/server/level/ServerLevel.java
+@@ -759,12 +759,23 @@ public class ServerLevel extends net.minecraft.world.level.Level implements Worl
+             this.server.getPlayerList().sendAll(new PacketPlayOutGameStateChange(PacketPlayOutGameStateChange.THUNDER_LEVEL_CHANGE, this.thunderLevel));
+         }
+         // */
+-        for (int idx = 0; idx < this.players.size(); ++idx) {
+-            if (((ServerPlayer) this.players.get(idx)).level == this) {
+-                ((ServerPlayer) this.players.get(idx)).tickWeather();
++        // Brilliant start - Yatopia
++        boolean sleepyMatch = true;
++        for (ServerPlayer player : players) {
++            if (player.level == this) {
++                player.tickWeather();
++                if (flag != this.isRaining()) player.setPlayerWeather((!flag ? WeatherType.DOWNFALL : WeatherType.CLEAR), false);
++                player.updateWeather(this.oRainLevel, this.rainLevel, this.oThunderLevel, this.thunderLevel);
+             }
++            if (sleepyMatch && !player.isSpectator() && !player.isSleepingLongEnough() && !player.fauxSleeping) {
++                sleepyMatch = false;
++            }
++            // Yatopia end
+         }
+ 
++        /* // Brilliant start - From Yatopia - moved up
++
++
+         if (flag != this.isRaining()) {
+             // Only send weather packets to those affected
+             for (int idx = 0; idx < this.players.size(); ++idx) {
+@@ -779,9 +790,10 @@ public class ServerLevel extends net.minecraft.world.level.Level implements Worl
+             }
+         }
+         // CraftBukkit end
++        */ // Brilliant End
+ 
+         i = this.getGameRules().getInt(GameRules.RULE_PLAYERS_SLEEPING_PERCENTAGE);
+-        if (this.purpurConfig.playersSkipNight && this.sleepStatus.areEnoughSleeping(i) && this.sleepStatus.areEnoughDeepSleeping(i, this.players)) {
++        if (this.purpurConfig.playersSkipNight && sleepyMatch) {
+             // CraftBukkit start
+             long l = this.levelData.getDayTime() + 24000L;
+             TimeSkipEvent event = new TimeSkipEvent(this.getWorld(), TimeSkipEvent.SkipReason.NIGHT_SKIP, (l - l % 24000L) - this.getDayTime());
+@@ -949,10 +961,14 @@ public class ServerLevel extends net.minecraft.world.level.Level implements Worl
+ 
+     private void wakeUpAllPlayers() {
+         this.sleepStatus.removeAllSleepers();
+-        (this.players.stream().filter(LivingEntity::isSleeping).collect(Collectors.toList())).forEach((entityplayer) -> { // CraftBukkit - decompile error
+-            entityplayer.stopSleepInBed(false, false);
+-        });
++        for (ServerPlayer entityplayer : players) {
++            if (entityplayer.isSleeping()) {
++                entityplayer.stopSleepInBed(false, false);
++            }
++            ;
++        } // Brilliant - From Yatopia
+     }
++
+     // Paper start - optimise random block ticking
+     private final BlockPos.MutableBlockPos chunkTickMutablePosition = new BlockPos.MutableBlockPos();
+     private final com.tuinity.tuinity.util.math.ThreadUnsafeRandom randomTickRandom = new com.tuinity.tuinity.util.math.ThreadUnsafeRandom(); public java.util.Random getThreadUnsafeRandom() { return this.randomTickRandom; } // Airplane - getter
+@@ -2544,8 +2560,9 @@ public class ServerLevel extends net.minecraft.world.level.Level implements Worl
+             // Spigot start
+             if ( entity instanceof Player )
+             {
+-                ServerLevel.this.getServer().levels.values().stream().map( ServerLevel::getDataStorage ).forEach( (worldData) ->
++                for ( ServerLevel worldServer : getServer().levels.values() ) // Brilliant - From Yatopia
+                 {
++                    DimensionDataStorage worldData = worldServer.getDataStorage();
+                     for (Object o : worldData.cache.values() )
+                     {
+                         if ( o instanceof MapItemSavedData )
+@@ -2562,7 +2579,7 @@ public class ServerLevel extends net.minecraft.world.level.Level implements Worl
+                             }
+                         }
+                     }
+-                } );
++                };
+             }
+             // Spigot end
+             // Spigot Start

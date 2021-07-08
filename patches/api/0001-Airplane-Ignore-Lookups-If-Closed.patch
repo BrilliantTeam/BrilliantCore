@@ -1,0 +1,35 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: NCT skyouo <anwugame@gmail.com>
+Date: Thu, 8 Jul 2021 22:00:41 +0800
+Subject: [PATCH] Airplane Ignore Lookups If Closed
+
+
+diff --git a/src/main/java/org/bukkit/plugin/java/PluginClassLoader.java b/src/main/java/org/bukkit/plugin/java/PluginClassLoader.java
+index 653b8597b513dabf091be6e07b3972db2ca74569..5fa5080472be6dc3bba7a0103b6189ff1ebcf2c6 100644
+--- a/src/main/java/org/bukkit/plugin/java/PluginClassLoader.java
++++ b/src/main/java/org/bukkit/plugin/java/PluginClassLoader.java
+@@ -45,6 +45,7 @@ public final class PluginClassLoader extends URLClassLoader { // Spigot
+     private IllegalStateException pluginState;
+     private final Set<String> seenIllegalAccess = Collections.newSetFromMap(new ConcurrentHashMap<>());
+     private java.util.logging.Logger logger; // Paper - add field
++    private boolean closed = false; // Airplane
+ 
+     static {
+         ClassLoader.registerAsParallelCapable();
+@@ -154,7 +155,7 @@ public final class PluginClassLoader extends URLClassLoader { // Spigot
+         }
+         Class<?> result = classes.get(name);
+ 
+-        if (result == null) {
++        if (result == null && !this.closed) { // Airplane
+             String path = name.replace('.', '/').concat(".class");
+             JarEntry entry = jar.getJarEntry(path);
+ 
+@@ -208,6 +209,7 @@ public final class PluginClassLoader extends URLClassLoader { // Spigot
+     public void close() throws IOException {
+         try {
+             super.close();
++            this.closed = true; // Airplane
+         } finally {
+             jar.close();
+         }

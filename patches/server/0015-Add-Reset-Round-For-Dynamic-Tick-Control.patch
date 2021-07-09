@@ -1,0 +1,42 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: NCT skyouo <anwugame@gmail.com>
+Date: Fri, 9 Jul 2021 14:57:10 +0800
+Subject: [PATCH] Add Reset Round For Dynamic Tick Control
+
+
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index 749b8b08521b513655c82cabaefac3e3a7298548..e630abc9ae9cfbbbdd6823015a92d77a61ffac19 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -1202,6 +1202,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+             boolean dynamicTickControl = BrilliantConfig.config.getBoolean("dynamic-tps-control", true);
+             if (this.initServer()) {
+                 long MSPT = MS_PER_TICK; // Brilliant
++                int reset_round = 0; // Brilliant
+                 this.nextTickTime = Util.getMillis();
+                 this.status.setDescription(new TextComponent(this.motd));
+                 this.status.setVersion(new ServerStatus.Version(SharedConstants.getCurrentVersion().getName(), SharedConstants.getCurrentVersion().getProtocolVersion()));
+@@ -1243,15 +1244,22 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+                         final long diff = curTime - tickSection;
+                         java.math.BigDecimal currentTps = TPS_BASE.divide(new java.math.BigDecimal(diff), 30, java.math.RoundingMode.HALF_UP);
+ 
++                        reset_round++; // Brilliant
+                         // Brilliant Start - Dynamic Tick Control
+                         if (currentTps.doubleValue() < (TPS * 0.8) && MSPT > 0 && dynamicTickControl) {
+                             MSPT -= BrilliantConfig.dynamicTickControlFixValue;
++                            reset_round++;
+                         } else if ((currentTps.doubleValue() < (TPS * 0.5) || MSPT < 0)  && dynamicTickControl) {
+                             MSPT = 0;
++                            reset_round++;
+                         } else if (currentTps.doubleValue() > (TPS * 0.8) && MSPT < MS_PER_TICK) {
+                             MSPT += BrilliantConfig.dynamicTickControlFixValue;
+-                        } else if (currentTps.doubleValue() > (TPS * 0.8) && MSPT > MS_PER_TICK) {
++                            reset_round--;
++                        }
++
++                        if ((currentTps.doubleValue() > (TPS * 0.8) && MSPT > MS_PER_TICK) || reset_round == BrilliantConfig.dynamicTickControlFixValue) {
+                             MSPT = MS_PER_TICK;
++                            reset_round = 0;
+                         }
+                         // Brilliant End
+                         tps5s.add(currentTps, diff); // Purpur

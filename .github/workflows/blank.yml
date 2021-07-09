@@ -30,8 +30,3 @@ jobs:
       - name: Build Brilliant
         run: |
           ./gradlew paperclip --stacktrace --no-daemon
-      - name: Archive Brilliant Paperclip
-        uses: actions/upload-artifact@v2
-        with:
-          name: Brilliant
-          path: brilliant.jar

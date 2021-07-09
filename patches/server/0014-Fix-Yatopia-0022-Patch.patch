@@ -1,0 +1,39 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: NCT skyouo <anwugame@gmail.com>
+Date: Fri, 9 Jul 2021 11:05:21 +0800
+Subject: [PATCH] Fix Yatopia 0022 Patch
+
+
+diff --git a/src/main/java/net/minecraft/server/level/ServerLevel.java b/src/main/java/net/minecraft/server/level/ServerLevel.java
+index 3e974b386ad8ff5a81c812fe0a6c5f234a274c41..3b5ae7e52ae2b474f6017dc4245753dcb335d3d3 100644
+--- a/src/main/java/net/minecraft/server/level/ServerLevel.java
++++ b/src/main/java/net/minecraft/server/level/ServerLevel.java
+@@ -760,24 +760,20 @@ public class ServerLevel extends net.minecraft.world.level.Level implements Worl
+         }
+         // */
+         // Brilliant start - Yatopia
+-        boolean sleepyMatch = true;
++        boolean sleepyMatch = false;
+         for (ServerPlayer player : players) {
+             if (player.level == this) {
+                 player.tickWeather();
+                 if (flag != this.isRaining()) player.setPlayerWeather((!flag ? WeatherType.DOWNFALL : WeatherType.CLEAR), false);
+                 player.updateWeather(this.oRainLevel, this.rainLevel, this.oThunderLevel, this.thunderLevel);
+             }
+-            if (sleepyMatch && !player.isSpectator() && !player.isSleepingLongEnough() && !player.fauxSleeping) {
+-                sleepyMatch = false;
++            if (!sleepyMatch && !player.isSpectator() && player.isSleepingLongEnough()) { // Brilliant - Fix Yatopia patch, I don't know what Yatopia Thinking about previous patch.
++                sleepyMatch = true;
+             }
+-            // Yatopia end
++            //  Brilliant end - From Yatopia
+         }
+ 
+         /* // Brilliant start - From Yatopia - moved up
+-
+-
+-        if (flag != this.isRaining()) {
+-            // Only send weather packets to those affected
+             for (int idx = 0; idx < this.players.size(); ++idx) {
+                 if (((ServerPlayer) this.players.get(idx)).level == this) {
+                     ((ServerPlayer) this.players.get(idx)).setPlayerWeather((!flag ? WeatherType.DOWNFALL : WeatherType.CLEAR), false);

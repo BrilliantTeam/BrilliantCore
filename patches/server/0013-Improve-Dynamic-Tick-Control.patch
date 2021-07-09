@@ -1,0 +1,74 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: NCT skyouo <anwugame@gmail.com>
+Date: Fri, 9 Jul 2021 09:51:22 +0800
+Subject: [PATCH] Improve Dynamic Tick Control
+
+
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index 01e8b280e3efad0c5bdbba3502b6c65776c428ae..749b8b08521b513655c82cabaefac3e3a7298548 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -189,7 +189,7 @@ import org.spigotmc.SlackActivityAccountant; // Spigot
+ import tech.skyouo.brilliant.BrilliantConfig;  // Brilliant
+ 
+ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTask> implements SnooperPopulator, CommandSource, AutoCloseable {
+-    public static final int TPS = BrilliantConfig.config.getInt("tps-limit", 20);
++    public static final int TPS = BrilliantConfig.tpsLimit;
+     public static final long TICK_TIME = 1000000000 / MinecraftServer.TPS;
+     public static final int MS_PER_TICK = 1000 / MinecraftServer.TPS;
+     public static final int SAMPLE_INTERVAL = MinecraftServer.TPS;
+@@ -1201,7 +1201,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+             long serverStartTime = Util.getNanos(); // Paper
+             boolean dynamicTickControl = BrilliantConfig.config.getBoolean("dynamic-tps-control", true);
+             if (this.initServer()) {
+-                long MSPT = MS_PER_TICK;
++                long MSPT = MS_PER_TICK; // Brilliant
+                 this.nextTickTime = Util.getMillis();
+                 this.status.setDescription(new TextComponent(this.motd));
+                 this.status.setVersion(new ServerStatus.Version(SharedConstants.getCurrentVersion().getName(), SharedConstants.getCurrentVersion().getProtocolVersion()));
+@@ -1242,12 +1242,15 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+                     {
+                         final long diff = curTime - tickSection;
+                         java.math.BigDecimal currentTps = TPS_BASE.divide(new java.math.BigDecimal(diff), 30, java.math.RoundingMode.HALF_UP);
++
+                         // Brilliant Start - Dynamic Tick Control
+                         if (currentTps.doubleValue() < (TPS * 0.8) && MSPT > 0 && dynamicTickControl) {
+-                            MSPT -= 4;
++                            MSPT -= BrilliantConfig.dynamicTickControlFixValue;
+                         } else if ((currentTps.doubleValue() < (TPS * 0.5) || MSPT < 0)  && dynamicTickControl) {
+                             MSPT = 0;
+-                        } else {
++                        } else if (currentTps.doubleValue() > (TPS * 0.8) && MSPT < MS_PER_TICK) {
++                            MSPT += BrilliantConfig.dynamicTickControlFixValue;
++                        } else if (currentTps.doubleValue() > (TPS * 0.8) && MSPT > MS_PER_TICK) {
+                             MSPT = MS_PER_TICK;
+                         }
+                         // Brilliant End
+diff --git a/src/main/java/net/minecraft/server/level/ChunkMap.java b/src/main/java/net/minecraft/server/level/ChunkMap.java
+index a2352906df37efe6b3203fe299963f4f530625aa..120ce9296e5e4cb65a0f8a5d474775b70ebda3b2 100644
+--- a/src/main/java/net/minecraft/server/level/ChunkMap.java
++++ b/src/main/java/net/minecraft/server/level/ChunkMap.java
+@@ -68,6 +68,7 @@ import net.minecraft.server.level.progress.ChunkProgressListener;
+ import net.minecraft.server.network.ServerPlayerConnection;
+ import net.minecraft.util.CsvOutput;
+ import net.minecraft.util.Mth;
++import net.minecraft.util.SortedArraySet;
+ import net.minecraft.util.profiling.ProfilerFiller;
+ import net.minecraft.util.thread.BlockableEventLoop;
+ import net.minecraft.util.thread.ProcessorHandle;
+diff --git a/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java b/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
+index 25e3d45863ddd90515e73fe1d5963b228f9849ce..1106251136ae6c2bb362ae1a225ca49b22d8c49f 100644
+--- a/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
++++ b/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
+@@ -155,8 +155,8 @@ public class BrilliantConfig {
+         dynamicTickControl = getBoolean("dynamic-tick-control.enable", true);
+     }
+ 
+-    public static int dynamicTickControlValue = 4;
+-    private static void dynamicTickControlValue() {
+-        dynamicTickControlValue = getInt("dynamic-tick-control.value", 4);
++    public static int dynamicTickControlFixValue = 4;
++    private static void dynamicTickControlFixValue() {
++        dynamicTickControlFixValue = getInt("dynamic-tick-control.value", 4);
+     }
+ }

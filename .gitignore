@@ -1,7 +1,10 @@
-Brilliant-API/*
-Brilliant-Server/*
-build/*
-.gradle/*
-gradle/*
-run/*
+Brilliant-API/
+Brilliant-Server/
+
+build/
+run/
+
+.gradle/
+
 *.jar
+!gradle/wrapper/gradle-wrapper.jar

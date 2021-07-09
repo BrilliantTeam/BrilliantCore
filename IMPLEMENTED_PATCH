@@ -7,16 +7,29 @@
 
 0003 Unlock TPS Limit
 
+0010 1.17.1 Update
+
+0011 Fix Type
+
+0012 Replace parkNano with thread sleep
+
 ## Yatopia
 
 0005 Yatopia Optimize Villagers
 - 0031 Optimize Villagers
 
-0006 Yatopia Utilities:
+0005 Yatopia Utilities:
 - 0003 Utilities
 
-0007 Yatopia 0013 0016 0017 0022:
+0006 Lithium HashedList
 - 0013 Lithium HashedList
+
+0007 Yatopia Heavily optimize furnance fuel and recipe lookups
 - 0016 Heavily optimize furnance fuel and recipe lookups
+
+0008 Yatopia Optimize TileEntity load/unload
 - 0017 Optimize TileEntity load/unload
+
+0009 Yatopia Optimize some stuff in WorldServer ticking
 - 0022 Optimize some stuff in WorldServer ticking
+  

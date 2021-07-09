@@ -68,7 +68,7 @@ paperweight {
         ref.set(providers.gradleProperty("AirplaneCommit"))
 
         withStandardPatcher {
-            baseName("Brilliant")
+            baseName("Airplane")
 
             apiOutputDir.set(layout.projectDirectory.dir("Brilliant-API"))
             serverOutputDir.set(layout.projectDirectory.dir("Brilliant-Server"))

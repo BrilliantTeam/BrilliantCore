@@ -1,0 +1,48 @@
+
+name: Build Main
+on: [ push ]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        java: [ 16 ]
+      fail-fast: true
+    steps:
+      - name: Checkout Git Repository
+        uses: actions/checkout@v2
+      - name: Validate Gradle Wrapper
+        uses: gradle/wrapper-validation-action@v1
+      - name: Set up JDK
+        uses: actions/setup-java@v2
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: 'adopt'
+      - name: Configure Git
+        run: |
+          git config --global user.email "no-reply@github.com"
+          git config --global user.name "Github Actions"
+      - name: Patch Brilliant
+        run: |
+          ./gradlew applyPatches --stacktrace --no-daemon
+      - name: Build Brilliant
+        run: |
+          ./gradlew paperclip --stacktrace --no-daemon
+      - name: Archive Brilliant Paperclip
+        uses: actions/upload-artifact@v2
+        with:
+          name: Brilliant
+          path: brilliant.jar
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: 'Brilliant "${{ github.ref }}"'
+          body: |
+            This is a Auto-Release by GitHub Actions,
+            Do not use it on production environment.
+          draft: false
+          prerelease: true

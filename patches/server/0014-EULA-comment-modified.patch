@@ -1,0 +1,40 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: skyouo0727 <anwugame@gmail.com>
+Date: Mon, 15 Nov 2021 23:19:43 +0800
+Subject: [PATCH] EULA comment modified
+
+
+diff --git a/src/main/java/net/minecraft/server/Eula.java b/src/main/java/net/minecraft/server/Eula.java
+index 43a88bc58716eef4040584944f52893c5a47699f..7fa938596086d98cce77f27b105b110f9401919b 100644
+--- a/src/main/java/net/minecraft/server/Eula.java
++++ b/src/main/java/net/minecraft/server/Eula.java
+@@ -64,7 +64,7 @@ public class Eula {
+                 try {
+                     Properties properties = new Properties();
+                     properties.setProperty("eula", "false");
+-                    properties.store(outputStream, "By changing the setting below to TRUE you are indicating your agreement to our EULA (https://account.mojang.com/documents/minecraft_eula).\nYou also agree that tacos are tasty, and the best food in the world.");  // Paper - fix lag; // Tuinity - Tacos are disgusting // Purpur - no they're not
++                    properties.store(outputStream, "By changing the setting below to TRUE you are indicating your agreement to our EULA (https://account.mojang.com/documents/minecraft_eula).\nYou also agree that furry is the best creature in this world uwu, \nalso will not forget all contributors of big Minecraft community.");  // Paper - fix lag; // Tuinity - Tacos are disgusting // Purpur - no they're not // Brilliant - Btw I cannot agree with Tuinity Devlopers more, tacos are disgusting, so I changed this to furry is best creature OwO
+                 } catch (Throwable var5) {
+                     if (outputStream != null) {
+                         try {
+diff --git a/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java b/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
+index 25e3d45863ddd90515e73fe1d5963b228f9849ce..d4e08687683ee87ffb1f8a34b6c93cfd0de07d1b 100644
+--- a/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
++++ b/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
+@@ -25,7 +25,7 @@ public class BrilliantConfig {
+             "If you set some config wrongly, the playing experience might *BE AFFECTED*, \n" +
+             "So think twice before you do it.";
+     private static File CONFIG_FILE;
+-    public static YamlConfiguration config;
++    public static YamlConfiguration config = new YamlConfiguration();
+ 
+     private static Map<String, Command> commands;
+ 
+@@ -34,7 +34,6 @@ public class BrilliantConfig {
+     public static void init() {
+         File configFile = new File("brilliant.yml");
+         CONFIG_FILE = configFile;
+-        config = new YamlConfiguration();
+         try {
+             config.load(CONFIG_FILE);
+         } catch (IOException ignore) {

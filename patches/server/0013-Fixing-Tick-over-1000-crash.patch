@@ -1,0 +1,55 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: skyouo0727 <anwugame@gmail.com>
+Date: Mon, 15 Nov 2021 22:23:30 +0800
+Subject: [PATCH] Fixing Tick over 1000 crash
+
+
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index 01e8b280e3efad0c5bdbba3502b6c65776c428ae..f7aa460dc0a294854a5e968cd500e97c17ca677c 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -190,10 +190,10 @@ import tech.skyouo.brilliant.BrilliantConfig;  // Brilliant
+ 
+ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTask> implements SnooperPopulator, CommandSource, AutoCloseable {
+     public static final int TPS = BrilliantConfig.config.getInt("tps-limit", 20);
+-    public static final long TICK_TIME = 1000000000 / MinecraftServer.TPS;
+-    public static final int MS_PER_TICK = 1000 / MinecraftServer.TPS;
+-    public static final int SAMPLE_INTERVAL = MinecraftServer.TPS;
+-    private static final long DELAYED_TASKS_TICK_EXTENSION = MinecraftServer.MS_PER_TICK; // Brilliant
++    public static final long TICK_TIME = 1000000000 / MinecraftServer.TPS; // Brilliant
++    public static final double MS_PER_TICK = 1000 / MinecraftServer.TPS; // Brilliant
++    public static final int SAMPLE_INTERVAL = MinecraftServer.TPS; // Brilliant
++    private static final double DELAYED_TASKS_TICK_EXTENSION = MinecraftServer.MS_PER_TICK; // Brilliant
+     private static MinecraftServer SERVER; // Paper
+     public static final Logger LOGGER = LogManager.getLogger();
+     private static final float AVERAGE_TICK_TIME_SMOOTHING = 0.8F;
+@@ -1201,7 +1201,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+             long serverStartTime = Util.getNanos(); // Paper
+             boolean dynamicTickControl = BrilliantConfig.config.getBoolean("dynamic-tps-control", true);
+             if (this.initServer()) {
+-                long MSPT = MS_PER_TICK;
++                double MSPT = MS_PER_TICK;
+                 this.nextTickTime = Util.getMillis();
+                 this.status.setDescription(new TextComponent(this.motd));
+                 this.status.setVersion(new ServerStatus.Version(SharedConstants.getCurrentVersion().getName(), SharedConstants.getCurrentVersion().getProtocolVersion()));
+@@ -1229,7 +1229,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+                     long i = ((curTime = System.nanoTime()) / (1000L * 1000L)) - this.nextTickTime; // Paper
+ 
+                     if (i > 5000L && this.nextTickTime - this.lastOverloadWarning >= 30000L) { // CraftBukkit
+-                        long j = i / MS_PER_TICK;
++                        double j = i / MS_PER_TICK;
+ 
+                         if (this.server.getWarnOnOverload()) // CraftBukkit
+                             MinecraftServer.LOGGER.warn("Can't keep up! Is the server overloaded? Running {}ms or {} ticks behind", i, j);
+@@ -1284,9 +1284,9 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+                     this.mayHaveDelayedTasks = true;
+                     // Purpur start - tps catchup
+                     if (net.pl3x.purpur.PurpurConfig.tpsCatchup) {
+-                        this.delayedTasksMaxNextTickTime = Math.max(Util.getMillis() + MSPT, this.nextTickTime);
++                        this.delayedTasksMaxNextTickTime = (long) Math.max(Util.getMillis() + MSPT, this.nextTickTime);
+                     } else {
+-                        this.delayedTasksMaxNextTickTime = this.nextTickTime = curTime / 1000000L + MSPT;
++                        this.delayedTasksMaxNextTickTime = this.nextTickTime = (long) (curTime / 1000000L + MSPT);
+                     }
+                     // Purpur end - tps catchup
+                     this.waitUntilNextTick();

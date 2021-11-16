@@ -1,0 +1,18 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: skyouo0727 <anwugame@gmail.com>
+Date: Tue, 16 Nov 2021 19:33:23 +0800
+Subject: [PATCH] Fix tps display for gui
+
+
+diff --git a/src/main/java/com/destroystokyo/paper/gui/RAMDetails.java b/src/main/java/com/destroystokyo/paper/gui/RAMDetails.java
+index f9251183df72ddc56662fd3f02acf21641a2200c..17d2b33520ebf97194c1adf4ad35e7125aff1224 100644
+--- a/src/main/java/com/destroystokyo/paper/gui/RAMDetails.java
++++ b/src/main/java/com/destroystokyo/paper/gui/RAMDetails.java
+@@ -81,6 +81,6 @@ public class RAMDetails extends JList<String> {
+     }
+ 
+     private static String format(double tps) {
+-        return ( ( tps > 21.0 ) ? "*" : "" ) + Math.min( Math.round( tps * 100.0 ) / 100.0, 20.0 );
++        return ( ( tps > MinecraftServer.TPS ) ? "*" : "" ) + Math.min( Math.round( tps * 100.0 ) / 100.0, MinecraftServer.TPS );
+     }
+ }

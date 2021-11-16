@@ -1,0 +1,76 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: skyouo0727 <anwugame@gmail.com>
+Date: Tue, 16 Nov 2021 19:31:50 +0800
+Subject: [PATCH] Fix high tick cause kicking user
+
+
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index f7aa460dc0a294854a5e968cd500e97c17ca677c..0427859eb3ed09f344e64d0cfc65b0e5fa579155 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -191,7 +191,7 @@ import tech.skyouo.brilliant.BrilliantConfig;  // Brilliant
+ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTask> implements SnooperPopulator, CommandSource, AutoCloseable {
+     public static final int TPS = BrilliantConfig.config.getInt("tps-limit", 20);
+     public static final long TICK_TIME = 1000000000 / MinecraftServer.TPS; // Brilliant
+-    public static final double MS_PER_TICK = 1000 / MinecraftServer.TPS; // Brilliant
++    public static final double MS_PER_TICK = (double) 1000 / MinecraftServer.TPS; // Brilliant
+     public static final int SAMPLE_INTERVAL = MinecraftServer.TPS; // Brilliant
+     private static final double DELAYED_TASKS_TICK_EXTENSION = MinecraftServer.MS_PER_TICK; // Brilliant
+     private static MinecraftServer SERVER; // Paper
+diff --git a/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java b/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java
+index 8581edaa5512c6b85229308761d5930aeafc3386..e8ac8f655f807d372bbd59c6315b7a9b9727368e 100644
+--- a/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java
++++ b/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java
+@@ -214,6 +214,7 @@ import org.bukkit.inventory.InventoryView;
+ import org.bukkit.inventory.SmithingInventory;
+ import org.bukkit.util.NumberConversions;
+ import co.aikar.timings.MinecraftTimings; // Paper
++import tech.skyouo.brilliant.BrilliantConfig;
+ // CraftBukkit end
+ 
+ public class ServerGamePacketListenerImpl implements ServerPlayerConnection, ServerGamePacketListener {
+@@ -319,7 +320,7 @@ public class ServerGamePacketListenerImpl implements ServerPlayerConnection, Ser
+         ++this.tickCount;
+         this.knownMovePacketCount = this.receivedMovePacketCount;
+         if (this.clientIsFloating && !this.player.isSleeping()) {
+-            if (++this.aboveGroundTickCount > 80) {
++            if (++this.aboveGroundTickCount > MinecraftServer.TPS * BrilliantConfig.aboveGroundTickCount) {
+                 ServerGamePacketListenerImpl.LOGGER.warn("{} was kicked for floating too long!", this.player.getName().getString());
+                 this.disconnect(com.destroystokyo.paper.PaperConfig.flyingKickPlayerMessage, org.bukkit.event.player.PlayerKickEvent.Cause.FLYING_PLAYER); // Paper - use configurable kick message & kick event cause
+                 return;
+diff --git a/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java b/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
+index 811b48e0b91e2af30a122b72803591e48519e6a9..457ea62a655e53eadae61d83ffe904c820ffc498 100644
+--- a/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
++++ b/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
+@@ -46,6 +46,7 @@ import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
+ import org.bukkit.event.player.PlayerPreLoginEvent;
+ // CraftBukkit end
+ import io.netty.buffer.Unpooled; // Paper
++import tech.skyouo.brilliant.BrilliantConfig;
+ 
+ public class ServerLoginPacketListenerImpl implements ServerLoginPacketListener {
+ 
+@@ -97,7 +98,7 @@ public class ServerLoginPacketListenerImpl implements ServerLoginPacketListener
+             }
+         }
+ 
+-        if (this.tick++ == 600) {
++        if (this.tick++ == BrilliantConfig.connectionTimeoutTick * MinecraftServer.TPS) {
+             this.disconnect(new TranslatableComponent("multiplayer.disconnect.slow_login"));
+         }
+ 
+diff --git a/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java b/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
+index d4e08687683ee87ffb1f8a34b6c93cfd0de07d1b..3096bddc5abe7391124e317228fe48c3d872ff5b 100644
+--- a/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
++++ b/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
+@@ -158,4 +158,9 @@ public class BrilliantConfig {
+     private static void dynamicTickControlValue() {
+         dynamicTickControlValue = getInt("dynamic-tick-control.value", 4);
+     }
+-}
++
++    public static int connectionTimeoutTick = 30;
++    public static void connectionTimeoutTick() { connectionTimeoutTick = getInt("connection-timeout-tick.value", 30); }
++
++    public static int aboveGroundTickCount = 4;
++    public static void aboveGroundTickCount() { aboveGroundTickCount = getInt("above-ground-tick-count.value", 4); }}

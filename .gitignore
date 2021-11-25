@@ -6,5 +6,7 @@ run/
 
 .gradle/
 
+.idea
+
 *.jar
 !gradle/wrapper/gradle-wrapper.jar

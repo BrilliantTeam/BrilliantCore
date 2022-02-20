@@ -1,0 +1,151 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: skyouo0727 <anwugame@gmail.com>
+Date: Sat, 19 Feb 2022 20:16:10 +0800
+Subject: [PATCH] Yatopia Optimize Recipe Lookups In RecipeManager
+
+
+diff --git a/src/main/java/net/minecraft/world/item/crafting/RecipeManager.java b/src/main/java/net/minecraft/world/item/crafting/RecipeManager.java
+index cc23533f77e3fa54a1075f637a2044bcb7729536..9ed97472094db9b01acf6dfdfecd2dc1c44523a4 100644
+--- a/src/main/java/net/minecraft/world/item/crafting/RecipeManager.java
++++ b/src/main/java/net/minecraft/world/item/crafting/RecipeManager.java
+@@ -9,16 +9,13 @@ import com.google.gson.JsonElement;
+ import com.google.gson.JsonObject;
+ import com.google.gson.JsonParseException;
+ import com.google.gson.JsonSyntaxException;
+-import java.util.Collection;
+-import java.util.Collections;
+-import java.util.Comparator;
+-import java.util.Iterator;
+-import java.util.List;
+-import java.util.Map;
++
++import java.util.*;
+ import java.util.Map.Entry;
+-import java.util.Optional;
+ import java.util.stream.Collectors;
+ import java.util.stream.Stream;
++
++import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+ import net.minecraft.Util;
+ import net.minecraft.core.NonNullList;
+ import net.minecraft.core.Registry;
+@@ -43,12 +40,18 @@ public class RecipeManager extends SimpleJsonResourceReloadListener {
+     public Map<ResourceLocation, Recipe<?>> byName = ImmutableMap.of();
+     private boolean hasErrors;
+ 
++    // Brilliant - Port Yatopia start
++    private final List<Recipe<?>> ALL_RECIPES_CACHE = new ObjectArrayList<>();
++    private final Map<RecipeType<?>, List<Recipe<?>>> TYPES_CACHE = new Object2ObjectLinkedOpenHashMap<>();
++    // Brilliant - Port Yatopia end
++
+     public RecipeManager() {
+         super(RecipeManager.GSON, "recipes");
+     }
+ 
+     protected void apply(Map<ResourceLocation, JsonElement> prepared, ResourceManager manager, ProfilerFiller profiler) {
+         this.hasErrors = false;
++        clearRecipes(); // Brilliant - Port Yatopia
+         // CraftBukkit start - SPIGOT-5667 make sure all types are populated and mutable
+         Map<RecipeType<?>, Object2ObjectLinkedOpenHashMap<ResourceLocation, Recipe<?>>> map1 = Maps.newHashMap();
+         for (RecipeType<?> recipeType : Registry.RECIPE_TYPE) {
+@@ -76,9 +79,16 @@ public class RecipeManager extends SimpleJsonResourceReloadListener {
+             }
+         }
+ 
++        // Brilliant - Yatopia start - nuke stream & cache all recipes for constant access in apply()
++        /*
+         this.recipes = (Map) map1.entrySet().stream().collect(ImmutableMap.toImmutableMap(Entry::getKey, (entry1) -> {
+             return entry1.getValue(); // CraftBukkit // Paper - decompile fix - *shrugs internally* // todo: is this needed anymore?
+         }));
++         */
++        this.recipes = ImmutableMap.copyOf(map1);
++        for (Object2ObjectLinkedOpenHashMap<ResourceLocation, Recipe<?>> recipesMap : map1.values()) {
++            ALL_RECIPES_CACHE.addAll(recipesMap.values());
++        }
+         this.byName = Maps.newHashMap(builder.build()); // CraftBukkit
+         RecipeManager.LOGGER.info("Loaded {} recipes", map1.size());
+     }
+@@ -94,6 +104,7 @@ public class RecipeManager extends SimpleJsonResourceReloadListener {
+             map.putAndMoveToFirst(irecipe.getId(), irecipe); // CraftBukkit - SPIGOT-4638: last recipe gets priority
+             this.byName.put(irecipe.getId(), irecipe);
+         }
++        ALL_RECIPES_CACHE.add(irecipe); // Yatopia
+     }
+     // CraftBukkit end
+ 
+@@ -103,26 +114,43 @@ public class RecipeManager extends SimpleJsonResourceReloadListener {
+ 
+     public <C extends Container, T extends Recipe<C>> Optional<T> getRecipeFor(RecipeType<T> type, C inventory, Level world) {
+         // CraftBukkit start
++        // Brilliant - Port Yatopia start - replace stream
++        /*
+         Optional<T> recipe = this.byType(type).values().stream().flatMap((irecipe) -> {
+             return Util.toStream(type.tryMatch(irecipe, world, inventory));
+         }).findFirst();
++         */
++
++        Collection<Recipe<C>> allTypes = this.byType(type).values();
++        Optional<T> recipe = Optional.empty();
++
++        for (Recipe<C> possible : allTypes) {
++            Optional<T> possibleRecipe = type.tryMatch(possible, world, inventory);
++            if (possibleRecipe.isPresent()) {
++                recipe = possibleRecipe;
++                break;
++            }
++        }
++        // Brilliant - Port Yatopia end
+         inventory.setCurrentRecipe(recipe.orElse(null)); // CraftBukkit - Clear recipe when no recipe is found
+         // CraftBukkit end
+         return recipe;
+     }
+ 
+     public <C extends Container, T extends Recipe<C>> List<T> getAllRecipesFor(RecipeType<T> type) {
+-        return (List) this.byType(type).values().stream().map((irecipe) -> {
+-            return irecipe;
+-        }).collect(Collectors.toList());
++        // Brilliant - Port Yatopia - replaced logic
++        // todo: Replace with Lithium's HashedList instead.
++        return (List) TYPES_CACHE.computeIfAbsent(type, recipes1 -> new ObjectArrayList<>(new ObjectArrayList<>(byType(type).values())));
++        // Yatopia end
+     }
+ 
+     public <C extends Container, T extends Recipe<C>> List<T> getRecipesFor(RecipeType<T> type, C inventory, Level world) {
+-        return (List) this.byType(type).values().stream().flatMap((irecipe) -> {
+-            return Util.toStream(type.tryMatch(irecipe, world, inventory));
+-        }).sorted(Comparator.comparing((irecipe) -> {
+-            return irecipe.getResultItem().getDescriptionId();
+-        })).collect(Collectors.toList());
++        List<T> ret = new ObjectArrayList<>();
++        for (Recipe<C> recipe : this.byType(type).values()) {
++            type.tryMatch(recipe, world, inventory).ifPresent(ret::add);
++        }
++        ret.sort(Comparator.comparing(recipe -> recipe.getResultItem().getDescriptionId()));
++        return ret;
+     }
+ 
+     private <C extends Container, T extends Recipe<C>> Map<ResourceLocation, Recipe<C>> byType(RecipeType<T> type) {
+@@ -150,9 +178,9 @@ public class RecipeManager extends SimpleJsonResourceReloadListener {
+     }
+ 
+     public Collection<Recipe<?>> getRecipes() {
+-        return (Collection) this.recipes.values().stream().flatMap((map) -> {
+-            return map.values().stream();
+-        }).collect(Collectors.toSet());
++        // Brilliant - Port Yatopia start - O(1) constant complexity
++        return ALL_RECIPES_CACHE;
++        // Brilliant - Port Yatopia end
+     }
+ 
+     public Stream<ResourceLocation> getRecipeIds() {
+@@ -201,6 +229,10 @@ public class RecipeManager extends SimpleJsonResourceReloadListener {
+ 
+     public void clearRecipes() {
+         this.recipes = Maps.newHashMap();
++        // Brilliant - Port Yatopia start - also clear cache
++        ALL_RECIPES_CACHE.clear();
++        TYPES_CACHE.clear();
++        // Brilliant - Port Yatopia end
+ 
+         for (RecipeType<?> recipeType : Registry.RECIPE_TYPE) {
+             this.recipes.put(recipeType, new Object2ObjectLinkedOpenHashMap<>());

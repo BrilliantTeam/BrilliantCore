@@ -1,0 +1,73 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: skyouo0727 <anwugame@gmail.com>
+Date: Sat, 19 Feb 2022 22:52:48 +0800
+Subject: [PATCH] Optional Send Statistics To Bedrock Players
+
+
+diff --git a/src/main/java/net/minecraft/server/level/ServerPlayer.java b/src/main/java/net/minecraft/server/level/ServerPlayer.java
+index 7b23535a680d2a8534dcb8dd87770f66fb982c13..50937c37b5b3e96ab05470d10964d0838103e915 100644
+--- a/src/main/java/net/minecraft/server/level/ServerPlayer.java
++++ b/src/main/java/net/minecraft/server/level/ServerPlayer.java
+@@ -164,6 +164,7 @@ import org.bukkit.event.player.PlayerPortalEvent;
+ import org.bukkit.event.player.PlayerTeleportEvent;
+ import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
+ import org.bukkit.inventory.MainHand;
++import org.geysermc.floodgate.api.FloodgateApi;
+ // CraftBukkit end
+ 
+ public class ServerPlayer extends Player {
+@@ -1614,6 +1615,7 @@ public class ServerPlayer extends Player {
+ 
+     @Override
+     public void awardStat(Stat<?> stat, int amount) {
++        if (tech.skyouo.brilliant.geyser.bulitin.Util.isBedrockPlayer(this.uuid)) return; // Brilliant
+         this.stats.increment(this, stat, amount);
+         this.level.getCraftServer().getScoreboardManager().getScoreboardScores(stat, this.getScoreboardName(), (scoreboardscore) -> { // CraftBukkit - Get our scores instead
+             scoreboardscore.add(amount);
+diff --git a/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java b/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
+index 1b11d340a62e168f2335d19eb70d39a54b38a033..0896e23fa9ecd0948f6924b3c705e2b47c5e465e 100644
+--- a/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
++++ b/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
+@@ -47,8 +47,8 @@ public class BrilliantConfig {
+         config.options().header(HEADER);
+         config.options().copyDefaults(true);
+ 
+-        version = getInt("config-version", 3);
+-        set("config-version", 3);
++        version = getInt("config-version", 4);
++        set("config-version", 4);
+ 
+         readConfig(BrilliantConfig.class, null);
+     }
+@@ -168,4 +168,9 @@ public class BrilliantConfig {
+     private static void setDoNotCheckBedrockPlayerFlightIfFloodgateInstalled() {
+         doNotCheckBedrockPlayerFlightIfFloodgateInstalled = getBoolean("geyser.do-not-check-player-flight", false);
+     }
++
++    public static boolean doNotSendStatisticsToBedrockPlayers = false;
++    private static void setDoNotSendStatisticsToBedrockPlayers() {
++        doNotSendStatisticsToBedrockPlayers = getBoolean("geyser.do-not-send-statistics-to-bedrock-players", false);
++    }
+ }
+diff --git a/src/main/java/tech/skyouo/brilliant/geyser/bulitin/Util.java b/src/main/java/tech/skyouo/brilliant/geyser/bulitin/Util.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..b583657734b8d9d8187680ac5e867dd46b5cd07e
+--- /dev/null
++++ b/src/main/java/tech/skyouo/brilliant/geyser/bulitin/Util.java
+@@ -0,0 +1,16 @@
++package tech.skyouo.brilliant.geyser.bulitin;
++
++import org.geysermc.floodgate.api.FloodgateApi;
++import tech.skyouo.brilliant.BrilliantConfig;
++
++import java.util.UUID;
++
++public class Util {
++    public static boolean isBedrockPlayer(UUID uuid) {
++        try {
++            return FloodgateApi.getInstance().isFloodgatePlayer(uuid) && !BrilliantConfig.doNotSendStatisticsToBedrockPlayers;
++        } catch(Exception e) {
++            return false;
++        }
++    }
++}

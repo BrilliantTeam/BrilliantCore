@@ -1,0 +1,188 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: skyouo0727 <anwugame@gmail.com>
+Date: Sat, 19 Feb 2022 14:15:51 +0800
+Subject: [PATCH] Bedrock Players Optional Flight Check
+
+
+diff --git a/build.gradle.kts b/build.gradle.kts
+index 3bdf0b8116e54290a841dd589f0a401dab33257f..2d8d0dde1c5ac1c3850694db066803873639f3a1 100644
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -15,6 +15,9 @@ repositories {
+         mavenContent { includeModule("net.fabricmc", "mapping-io") }
+     }
+     // Paper end
++    // Brilliant start
++    maven("https://repo.opencollab.dev/maven-snapshots/")
++    // Brilliant end
+ }
+ 
+ dependencies {
+@@ -63,6 +66,10 @@ dependencies {
+     // Pufferfish end
+     implementation("com.github.technove:Flare:2c4a2114a0") // Pufferfish - flare
+ 
++    // Brilliant start
++    implementation("org.geysermc.floodgate:api:2.0-SNAPSHOT") // Brilliant - bulit-in integrate
++    // Brilliant end
++
+     testImplementation("io.github.classgraph:classgraph:4.8.47") // Paper - mob goal test
+     testImplementation("junit:junit:4.13.2")
+     testImplementation("org.hamcrest:hamcrest-library:1.3")
+diff --git a/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java b/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java
+index 7f3cf65ee79eb11b4b8679e4432d4001bf652fde..df1c78cc7ea63f1e50fd7272998ba681d9df3612 100644
+--- a/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java
++++ b/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java
+@@ -214,6 +214,7 @@ import org.bukkit.inventory.InventoryView;
+ import org.bukkit.inventory.SmithingInventory;
+ import org.bukkit.util.NumberConversions;
+ import co.aikar.timings.MinecraftTimings; // Paper
++import tech.skyouo.brilliant.geyser.bulitin.FlightChecker;
+ // CraftBukkit end
+ 
+ public class ServerGamePacketListenerImpl implements ServerPlayerConnection, ServerGamePacketListener {
+@@ -319,7 +320,7 @@ public class ServerGamePacketListenerImpl implements ServerPlayerConnection, Ser
+         ++this.tickCount;
+         this.knownMovePacketCount = this.receivedMovePacketCount;
+         if (this.clientIsFloating && !this.player.isSleeping()) {
+-            if (++this.aboveGroundTickCount > MinecraftServer.TPS * 4) {
++            if (++this.aboveGroundTickCount > MinecraftServer.TPS * 4 && FlightChecker.check(this.player)) {
+                 ServerGamePacketListenerImpl.LOGGER.warn("{} was kicked for floating too long!", this.player.getName().getString());
+                 this.disconnect(com.destroystokyo.paper.PaperConfig.flyingKickPlayerMessage, org.bukkit.event.player.PlayerKickEvent.Cause.FLYING_PLAYER); // Paper - use configurable kick message & kick event cause
+                 return;
+@@ -337,7 +338,7 @@ public class ServerGamePacketListenerImpl implements ServerPlayerConnection, Ser
+             this.vehicleLastGoodX = this.lastVehicle.getX();
+             this.vehicleLastGoodY = this.lastVehicle.getY();
+             this.vehicleLastGoodZ = this.lastVehicle.getZ();
+-            if (this.clientVehicleIsFloating && this.player.getRootVehicle().getControllingPassenger() == this.player) {
++            if (this.clientVehicleIsFloating && this.player.getRootVehicle().getControllingPassenger() == this.player && FlightChecker.check(this.player)) {
+                 if (++this.aboveGroundVehicleTickCount > MinecraftServer.TPS * 4) { // Brilliant - wtf why there use 80 instead of 4 * TPS?
+                     ServerGamePacketListenerImpl.LOGGER.warn("{} was kicked for floating a vehicle too long!", this.player.getName().getString());
+                     this.disconnect(com.destroystokyo.paper.PaperConfig.flyingKickVehicleMessage, org.bukkit.event.player.PlayerKickEvent.Cause.FLYING_VEHICLE); // Paper - use configurable kick message & kick event cause
+diff --git a/src/main/java/net/minecraft/world/entity/player/Player.java b/src/main/java/net/minecraft/world/entity/player/Player.java
+index 570d2325997e2465a8e17803ea882bc07ca64c38..74dee93ae8732597c44717dee346cf003932f2a6 100644
+--- a/src/main/java/net/minecraft/world/entity/player/Player.java
++++ b/src/main/java/net/minecraft/world/entity/player/Player.java
+@@ -122,6 +122,7 @@ import org.bukkit.event.entity.EntityCombustByEntityEvent;
+ import org.bukkit.event.entity.EntityExhaustionEvent;
+ import org.bukkit.event.player.PlayerDropItemEvent;
+ import org.bukkit.event.player.PlayerVelocityEvent;
++import tech.skyouo.brilliant.BrilliantConfig;
+ // CraftBukkit end
+ 
+ public abstract class Player extends LivingEntity {
+@@ -274,19 +275,26 @@ public abstract class Player extends LivingEntity {
+         this.moveCloak();
+         if (!this.level.isClientSide) {
+             this.foodData.tick(this);
+-            this.awardStat(Stats.PLAY_TIME);
+-            this.awardStat(Stats.TOTAL_WORLD_TIME);
+-            if (this.isAlive()) {
+-                this.awardStat(Stats.TIME_SINCE_DEATH);
+-            }
+ 
+-            if (this.isDiscrete()) {
+-                this.awardStat(Stats.CROUCH_TIME);
+-            }
++            // Brilliant - Port Yatopia start
++            int interval = BrilliantConfig.playerTimeStatisticsInterval;
++            if (this.tickCount % interval == 0) {
++
++                this.awardStat(Stats.PLAY_TIME, interval);
++                this.awardStat(Stats.TOTAL_WORLD_TIME, interval);
++                if (this.isAlive()) {
++                    this.awardStat(Stats.TIME_SINCE_DEATH, interval);
++                }
+ 
+-            if (!this.isSleeping()) {
+-                this.awardStat(Stats.TIME_SINCE_REST);
++                if (this.isDiscrete()) {
++                    this.awardStat(Stats.CROUCH_TIME, interval);
++                }
++
++                if (!this.isSleeping()) {
++                    this.awardStat(Stats.TIME_SINCE_REST, interval);
++                }
+             }
++            // Brilliant - Port Yatopia end
+         }
+ 
+         int i = 29999999;
+diff --git a/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java b/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
+index 98c77e910c908a65a065667be82c74ae04e080a2..1b11d340a62e168f2335d19eb70d39a54b38a033 100644
+--- a/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
++++ b/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
+@@ -7,6 +7,7 @@ import org.bukkit.command.Command;
+ import org.bukkit.configuration.ConfigurationSection;
+ import org.bukkit.configuration.InvalidConfigurationException;
+ import org.bukkit.configuration.file.YamlConfiguration;
++import tech.skyouo.brilliant.geyser.bulitin.FlightChecker;
+ 
+ import java.io.File;
+ import java.io.IOException;
+@@ -46,8 +47,8 @@ public class BrilliantConfig {
+         config.options().header(HEADER);
+         config.options().copyDefaults(true);
+ 
+-        version = getInt("config-version", 2);
+-        set("config-version", 2);
++        version = getInt("config-version", 3);
++        set("config-version", 3);
+ 
+         readConfig(BrilliantConfig.class, null);
+     }
+@@ -56,6 +57,8 @@ public class BrilliantConfig {
+         commands = new HashMap<>();
+         commands.put("brilliant", new BrilliantCommandHandler());
+         registerCommands();
++
++        FlightChecker.init();
+     }
+ 
+     protected static void log(String s) {
+@@ -152,7 +155,17 @@ public class BrilliantConfig {
+     }
+ 
+     public static boolean doPlayersCollide = true;
+-    private  static void setDoPlayersCollide() {
++    private static void setDoPlayersCollide() {
+         doPlayersCollide = getBoolean("do-players-collide", true);
+     }
++
++    public static int playerTimeStatisticsInterval = 1;
++    private static void setPlayerTimeStatisticsInterval() {
++        playerTimeStatisticsInterval = getInt("player-statistics-intervals", 1) < 1 ? 1 : getInt("player-statistics-intervals", 1);
++    }
++
++    public static boolean doNotCheckBedrockPlayerFlightIfFloodgateInstalled = false;
++    private static void setDoNotCheckBedrockPlayerFlightIfFloodgateInstalled() {
++        doNotCheckBedrockPlayerFlightIfFloodgateInstalled = getBoolean("geyser.do-not-check-player-flight", false);
++    }
+ }
+diff --git a/src/main/java/tech/skyouo/brilliant/geyser/bulitin/FlightChecker.java b/src/main/java/tech/skyouo/brilliant/geyser/bulitin/FlightChecker.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..950672f2c0dda3149db1ef54f5e304d81a219a01
+--- /dev/null
++++ b/src/main/java/tech/skyouo/brilliant/geyser/bulitin/FlightChecker.java
+@@ -0,0 +1,21 @@
++package tech.skyouo.brilliant.geyser.bulitin;
++
++import net.minecraft.world.entity.player.Player;
++import org.bukkit.Bukkit;
++import org.geysermc.floodgate.api.FloodgateApi;
++import tech.skyouo.brilliant.BrilliantConfig;
++
++public class FlightChecker {
++    public static boolean enabled = false;
++    public static void init() {
++        FlightChecker.enabled = Bukkit.getServer().getPluginManager().getPlugin("Geyser-Spigot") != null || Bukkit.getServer().getPluginManager().getPlugin("floodgate") != null;
++    }
++
++    public static boolean check(Player player) {
++        try {
++            return FloodgateApi.getInstance().isFloodgatePlayer(player.getUUID()) && FlightChecker.enabled && BrilliantConfig.doNotCheckBedrockPlayerFlightIfFloodgateInstalled;
++        } catch (Exception e) {
++            return false;
++        }
++    }
++}

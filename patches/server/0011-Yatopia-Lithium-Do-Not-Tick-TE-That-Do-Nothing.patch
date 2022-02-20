@@ -1,0 +1,1362 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: skyouo0727 <anwugame@gmail.com>
+Date: Sat, 19 Feb 2022 22:24:45 +0800
+Subject: [PATCH] Yatopia Lithium Do Not Tick TE That Do Nothing
+
+
+diff --git a/src/main/java/me/jellysquid/mods/lithium/common/util/collections/HashedList.java b/src/main/java/me/jellysquid/mods/lithium/common/util/collections/HashedList.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d79932dbd1fc386a94b8d6ea3526934c54c2aad
+--- /dev/null
++++ b/src/main/java/me/jellysquid/mods/lithium/common/util/collections/HashedList.java
+@@ -0,0 +1,280 @@
++package me.jellysquid.mods.lithium.common.util.collections;
++
++import it.unimi.dsi.fastutil.objects.Reference2IntOpenHashMap;
++import it.unimi.dsi.fastutil.objects.ReferenceArrayList;
++import java.util.Collection;
++import java.util.Iterator;
++import java.util.List;
++import java.util.ListIterator;
++import java.util.NoSuchElementException;
++
++/**
++ * Wraps a {@link List} with a hash table which provides O(1) lookups for {@link Collection#contains(Object)}. The type
++ * contained by this list must use reference-equality semantics.
++ */
++@SuppressWarnings("SuspiciousMethodCalls")
++public class HashedList<T> implements List<T> {
++    private final ReferenceArrayList<T> list;
++    private final Reference2IntOpenHashMap<T> counter;
++
++    public HashedList(List<T> list) {
++        this.list = new ReferenceArrayList<>();
++        this.list.addAll(list);
++
++        this.counter = new Reference2IntOpenHashMap<>();
++        this.counter.defaultReturnValue(0);
++
++        for (T obj : this.list) {
++            this.counter.addTo(obj, 1);
++        }
++    }
++
++    @Override
++    public int size() {
++        return this.list.size();
++    }
++
++    @Override
++    public boolean isEmpty() {
++        return this.list.isEmpty();
++    }
++
++    @Override
++    public boolean contains(Object o) {
++        return this.counter.containsKey(o);
++    }
++
++    @Override
++    public Iterator<T> iterator() {
++        return this.listIterator();
++    }
++
++    @Override
++    public Object[] toArray() {
++        return this.list.toArray();
++    }
++
++    @SuppressWarnings("SuspiciousToArrayCall")
++    @Override
++    public <T1> T1[] toArray(T1[] a) {
++        return this.list.toArray(a);
++    }
++
++    @Override
++    public boolean add(T t) {
++        this.trackReferenceAdded(t);
++
++        return this.list.add(t);
++    }
++
++    @Override
++    public boolean remove(Object o) {
++        this.trackReferenceRemoved(o);
++
++        return this.list.remove(o);
++    }
++
++    @Override
++    public boolean containsAll(Collection<?> c) {
++        for (Object obj : c) {
++            if (!this.counter.containsKey(obj)) {
++                return false;
++            }
++        }
++
++        return true;
++    }
++
++    @Override
++    public boolean addAll(Collection<? extends T> c) {
++        for (T obj : c) {
++            this.trackReferenceAdded(obj);
++        }
++
++        return this.list.addAll(c);
++    }
++
++    @Override
++    public boolean addAll(int index, Collection<? extends T> c) {
++        for (T obj : c) {
++            this.trackReferenceAdded(obj);
++        }
++
++        return this.list.addAll(index, c);
++    }
++
++    @Override
++    public boolean removeAll(Collection<?> c) {
++        for (Object obj : c) {
++            this.trackReferenceRemoved(obj);
++        }
++
++        return this.list.removeAll(c);
++    }
++
++    @Override
++    public boolean retainAll(Collection<?> c) {
++        return this.list.retainAll(c);
++    }
++
++    @Override
++    public void clear() {
++        this.counter.clear();
++        this.list.clear();
++    }
++
++    @Override
++    public T get(int index) {
++        return this.list.get(index);
++    }
++
++    @Override
++    public T set(int index, T element) {
++        T prev = this.list.set(index, element);
++
++        if (prev != element) {
++            if (prev != null) {
++                this.trackReferenceRemoved(prev);
++            }
++
++            this.trackReferenceAdded(element);
++        }
++
++        return prev;
++    }
++
++    @Override
++    public void add(int index, T element) {
++        this.trackReferenceAdded(element);
++
++        this.list.add(index, element);
++    }
++
++    @Override
++    public T remove(int index) {
++        T prev = this.list.remove(index);
++
++        if (prev != null) {
++            this.trackReferenceRemoved(prev);
++        }
++
++        return prev;
++    }
++
++    @Override
++    public int indexOf(Object o) {
++        return this.list.indexOf(o);
++    }
++
++    @Override
++    public int lastIndexOf(Object o) {
++        return this.list.lastIndexOf(o);
++    }
++
++    @Override
++    public ListIterator<T> listIterator() {
++        return this.listIterator(0);
++    }
++
++    @Override
++    public ListIterator<T> listIterator(int index) {
++        return new ListIterator<T>() {
++            private final ListIterator<T> inner = HashedList.this.list.listIterator(index);
++
++            @Override
++            public boolean hasNext() {
++                return this.inner.hasNext();
++            }
++
++            @Override
++            public T next() {
++                return this.inner.next();
++            }
++
++            @Override
++            public boolean hasPrevious() {
++                return this.inner.hasPrevious();
++            }
++
++            @Override
++            public T previous() {
++                return this.inner.previous();
++            }
++
++            @Override
++            public int nextIndex() {
++                return this.inner.nextIndex();
++            }
++
++            @Override
++            public int previousIndex() {
++                return this.inner.previousIndex();
++            }
++
++            @Override
++            public void remove() {
++                int last = this.previousIndex();
++
++                if (last == -1) {
++                    throw new NoSuchElementException();
++                }
++
++                T prev = HashedList.this.get(last);
++
++                if (prev != null) {
++                    HashedList.this.trackReferenceRemoved(prev);
++                }
++
++                this.inner.remove();
++            }
++
++            @Override
++            public void set(T t) {
++                int last = this.previousIndex();
++
++                if (last == -1) {
++                    throw new NoSuchElementException();
++                }
++
++                T prev = HashedList.this.get(last);
++
++                if (prev != t) {
++                    if (prev != null) {
++                        HashedList.this.trackReferenceRemoved(prev);
++                    }
++
++                    HashedList.this.trackReferenceAdded(t);
++                }
++
++                this.inner.remove();
++            }
++
++            @Override
++            public void add(T t) {
++                HashedList.this.trackReferenceAdded(t);
++
++                this.inner.add(t);
++            }
++        };
++    }
++
++    @Override
++    public List<T> subList(int fromIndex, int toIndex) {
++        return this.list.subList(fromIndex, toIndex);
++    }
++
++    private void trackReferenceAdded(T t) {
++        this.counter.addTo(t, 1);
++    }
++
++    @SuppressWarnings("unchecked")
++    private void trackReferenceRemoved(Object o) {
++        if (this.counter.addTo((T) o, -1) <= 1) {
++            this.counter.removeInt(o);
++        }
++    }
++
++    public static <T> HashedList<T> wrapper(List<T> list) {
++        return new HashedList<>(list);
++    }
++}
+diff --git a/src/main/java/me/jellysquid/mods/lithium/common/util/collections/ListeningList.java b/src/main/java/me/jellysquid/mods/lithium/common/util/collections/ListeningList.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..3f4e2289776e0a500bcc33d30c90b5694eaa5dab
+--- /dev/null
++++ b/src/main/java/me/jellysquid/mods/lithium/common/util/collections/ListeningList.java
+@@ -0,0 +1,255 @@
++package me.jellysquid.mods.lithium.common.util.collections;
++
++import org.jetbrains.annotations.NotNull;
++
++import java.util.*;
++import java.util.function.Consumer;
++import java.util.function.Predicate;
++import java.util.function.UnaryOperator;
++import java.util.stream.Stream;
++
++public class ListeningList<T> implements List<T> {
++    private final List<T> delegate;
++    private final Runnable changeCallback;
++
++    public ListeningList(List<T> delegate, Runnable changeCallback) {
++        this.delegate = delegate;
++        this.changeCallback = changeCallback;
++    }
++
++    private void onChange() {
++        this.changeCallback.run();
++    }
++
++
++    @Override
++    public int size() {
++        return this.delegate.size();
++    }
++
++    @Override
++    public boolean isEmpty() {
++        return this.delegate.isEmpty();
++    }
++
++    @Override
++    public boolean contains(Object o) {
++        return this.delegate.contains(o);
++    }
++
++    @NotNull
++    @Override
++    public Iterator<T> iterator() {
++        return this.listIterator();
++    }
++
++    @NotNull
++    @Override
++    public Object[] toArray() {
++        return this.delegate.toArray();
++    }
++
++    @Override
++    public void forEach(Consumer<? super T> consumer) {
++        this.delegate.forEach(consumer);
++    }
++
++    @NotNull
++    @Override
++    public <T1> T1[] toArray(@NotNull T1[] t1s) {
++        //noinspection SuspiciousToArrayCall
++        return this.delegate.toArray(t1s);
++    }
++
++    @Override
++    public boolean add(T t) {
++        boolean add = this.delegate.add(t);
++        this.onChange();
++        //noinspection ConstantConditions
++        return add;
++    }
++
++    @Override
++    public boolean remove(Object o) {
++        boolean remove = this.delegate.remove(o);
++        this.onChange();
++        return remove;
++    }
++
++    @Override
++    public boolean containsAll(@NotNull Collection<?> collection) {
++        return this.delegate.containsAll(collection);
++    }
++
++    @Override
++    public boolean addAll(@NotNull Collection<? extends T> collection) {
++        boolean addAll = this.delegate.addAll(collection);
++        this.onChange();
++        return addAll;
++    }
++
++    @Override
++    public boolean addAll(int i, @NotNull Collection<? extends T> collection) {
++        boolean addAll = this.delegate.addAll(i, collection);
++        this.onChange();
++        return addAll;
++    }
++
++    @Override
++    public boolean removeAll(@NotNull Collection<?> collection) {
++        boolean b = this.delegate.removeAll(collection);
++        this.onChange();
++        return b;
++    }
++
++    @Override
++    public boolean removeIf(Predicate<? super T> predicate) {
++        boolean b = this.delegate.removeIf(predicate);
++        this.onChange();
++        return b;
++    }
++
++    @Override
++    public boolean retainAll(@NotNull Collection<?> collection) {
++        boolean b = this.delegate.retainAll(collection);
++        this.onChange();
++        return b;
++    }
++
++    @Override
++    public void replaceAll(UnaryOperator<T> unaryOperator) {
++        this.delegate.replaceAll( unaryOperator);
++        this.onChange();
++    }
++
++    @Override
++    public void sort(Comparator<? super T> comparator) {
++        this.delegate.sort(comparator);
++        this.onChange();
++    }
++
++    @Override
++    public void clear() {
++        this.delegate.clear();
++        this.onChange();
++    }
++
++    @Override
++    public T get(int i) {
++        return this.delegate.get(i);
++    }
++
++    @Override
++    public T set(int i, T t) {
++        T set = this.delegate.set(i, t);
++        this.onChange();
++        return set;
++    }
++
++    @Override
++    public void add(int i, T t) {
++        this.delegate.add(i, t);
++        this.onChange();
++    }
++
++    @Override
++    public T remove(int i) {
++        T remove = this.delegate.remove(i);
++        this.onChange();
++        return remove;
++    }
++
++    @Override
++    public int indexOf(Object o) {
++        return this.delegate.indexOf(o);
++    }
++
++    @Override
++    public int lastIndexOf(Object o) {
++        return this.delegate.lastIndexOf(o);
++    }
++
++    @NotNull
++    @Override
++    public ListIterator<T> listIterator() {
++        return this.listIterator(0);
++    }
++
++    @NotNull
++    @Override
++    public ListIterator<T> listIterator(int i) {
++        return new ListIterator<T>() {
++            final ListIterator<T> itDelegate = ListeningList.this.delegate.listIterator(i);
++
++            @Override
++            public boolean hasNext() {
++                return this.itDelegate.hasNext();
++            }
++
++            @Override
++            public T next() {
++                return this.itDelegate.next();
++            }
++
++            @Override
++            public boolean hasPrevious() {
++                return this.itDelegate.hasPrevious();
++            }
++
++            @Override
++            public T previous() {
++                return this.itDelegate.previous();
++            }
++
++            @Override
++            public int nextIndex() {
++                return this.itDelegate.nextIndex();
++            }
++
++            @Override
++            public int previousIndex() {
++                return this.itDelegate.previousIndex();
++            }
++
++            @Override
++            public void remove() {
++                this.itDelegate.remove();
++                ListeningList.this.onChange();
++            }
++
++            @Override
++            public void set(T t) {
++                this.itDelegate.set(t);
++                ListeningList.this.onChange();
++
++            }
++
++            @Override
++            public void add(T t) {
++                this.itDelegate.add(t);
++                ListeningList.this.onChange();
++            }
++        };
++    }
++
++    @NotNull
++    @Override
++    public List<T> subList(int i, int i1) {
++        throw new UnsupportedOperationException();
++    }
++
++    @Override
++    public Spliterator<T> spliterator() {
++        return this.delegate.spliterator();
++    }
++
++    @Override
++    public Stream<T> stream() {
++        return this.delegate.stream();
++    }
++
++    @Override
++    public Stream<T> parallelStream() {
++        return this.delegate.parallelStream();
++    }
++}
+diff --git a/src/main/java/me/jellysquid/mods/lithium/common/util/collections/MaskedTickingBlockEntityList.java b/src/main/java/me/jellysquid/mods/lithium/common/util/collections/MaskedTickingBlockEntityList.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..91dccdbe0b454f72063df809b39837fad2525d8f
+--- /dev/null
++++ b/src/main/java/me/jellysquid/mods/lithium/common/util/collections/MaskedTickingBlockEntityList.java
+@@ -0,0 +1,320 @@
++package me.jellysquid.mods.lithium.common.util.collections;
++
++import com.google.common.collect.Iterators;
++import it.unimi.dsi.fastutil.ints.IntArrayList;
++import it.unimi.dsi.fastutil.objects.Reference2IntOpenHashMap;
++import it.unimi.dsi.fastutil.objects.ReferenceArrayList;
++import org.jetbrains.annotations.NotNull;
++
++import java.util.*;
++import java.util.function.Predicate;
++
++public class MaskedTickingBlockEntityList<T> implements List<T> {
++    private final Predicate<T> mayContain;
++
++    private final Reference2IntOpenHashMap<T> allElements2Index;
++    private final ReferenceArrayList<T> allElements;
++
++    private final IntArrayList filteredSuccessor;
++    private final BitSet filteredElementsMask;
++
++    private int firstRemovedIndex;
++
++    //Visualization of the internal datastructures
++    //indices:      0 1 2 3 4 5 6 7 8 9
++    //allElements:  A B C D - F G H I J  //E was fully removed, C,F,G,I were filtered away
++    //filteredMask: 1 1 0 1 0 0 0 1 0 1
++    //successor:  0 1 3 - 7 - - - 9 - - (index offset by 1, due to the first successor having to point to the first element)
++    //Removals from the allElements ArrayList are done by setting the value to null
++    //The successor list is used to iterate through the allElements ArrayList with an increasing index, but skipping long chains of null elements.
++    //The BitSet mask is used to find the predecessor and successor quickly (not asymptotically fast, but fast enough)
++
++    public MaskedTickingBlockEntityList(List<T> list, Predicate<T> mayContain) {
++        this.mayContain = mayContain;
++        this.allElements = new ReferenceArrayList<>();
++        this.allElements2Index = new Reference2IntOpenHashMap<>();
++        this.allElements2Index.defaultReturnValue(-1);
++        this.filteredSuccessor = new IntArrayList();
++        this.filteredElementsMask = new BitSet();
++        this.firstRemovedIndex = Integer.MAX_VALUE;
++
++        for (T t : list) {
++            if (this.mayContain.test(t)) {
++                int index = this.allElements.size();
++                this.allElements.add(t);
++                this.filteredElementsMask.set(index);
++                this.filteredSuccessor.add(index);
++                this.allElements2Index.put(t, index);
++            }
++        }
++        this.filteredSuccessor.add(-1);
++    }
++
++    public void setEntryVisible(T t, boolean value) {
++        this.setEntryVisible(this.allElements2Index.getOrDefault(t, -1), value);
++    }
++
++    public void setEntryVisible(int index, boolean value) {
++        //Visualization of the operations possible
++        //All:         A B C D - F G H I J (- for null)
++        //filteredMask:1 1 0 1 0 0 0 1 0 1
++        //indices:     0 1 2 3 4 5 6 7 8 9
++        //successor: 0 1 3 - 7 - - - 9 - - (- for no successor)
++        //Set F visible:
++        //All:         A B C D - F G H I J
++        //filteredMask:1 1 0 1 0 1 0 1 0 1  //set mask at F to 1
++        //indices:     0 1 2 3 4 5 6 7 8 9
++        //successor: 0 1 3 - 5 - 7 - 9 - -  //update successor of predecessor to F and set F's successor to old successor of predecessor
++        //Set D filtered:
++        //All:         A B C D - F G H I J
++        //Mask:        1 1 0 0 0 1 0 1 0 1  //set mask at D to 0
++        //indices:     0 1 2 3 4 5 6 7 8 9
++        //successor: 0 1 5 - - - 7 - 9 - -  //update successor of predecessor to old successor of D and remove D's successor value
++
++        //These calls do not modify the size, they can't cause rehashing, they are safe to use during iteration
++        if (index == -1 || value == this.filteredElementsMask.get(index)) {
++            return;
++        }
++
++        this.filteredElementsMask.set(index, value);
++        int predecessor = this.filteredElementsMask.previousSetBit(index - 1);
++        if (value) {
++            int successor = this.filteredSuccessor.getInt(predecessor + 1);
++            this.filteredSuccessor.set(predecessor + 1, index);
++            this.filteredSuccessor.set(index + 1, successor);
++        } else {
++            int successor = this.filteredSuccessor.getInt(index + 1);
++            this.filteredSuccessor.set(predecessor + 1, successor);
++            this.filteredSuccessor.set(index + 1, -2); //no successor as this element cannot be reached
++        }
++    }
++
++    private void compact() {
++        int targetSize = this.size();
++        int newIndex = this.firstRemovedIndex - 1;
++        int lastVisible = this.filteredElementsMask.previousSetBit(newIndex);
++
++
++        for (int i = newIndex + 1; i < this.allElements.size(); i++) {
++            T t = this.allElements.get(i);
++            if (t == null) {
++                continue;
++            }
++            boolean visible = this.filteredElementsMask.get(i);
++            //shift all entries to the lower indices (filling the gaps created by remove() setting null)
++            newIndex++;
++            //i is guaranteed to not be smaller than newIndex, therefore we can write to the same collections
++
++            this.allElements.set(newIndex, t);
++            this.allElements2Index.put(t, newIndex);
++            this.filteredElementsMask.set(newIndex, visible);
++
++            //update the successor links
++            this.filteredSuccessor.set(newIndex + 1, -2); //no successor as there is no next entry yet
++            if (visible) {
++                this.filteredSuccessor.set(lastVisible + 1, newIndex);
++                lastVisible = newIndex;
++            }
++        }
++
++        if (newIndex + 1 != targetSize) {
++            throw new IllegalStateException("Compaction ended up with incorrect size: Should be: " + targetSize + " but is: " + (newIndex + 1));
++        }
++
++        this.filteredSuccessor.set(lastVisible + 1, -1); //-1 means this was the last element
++        this.firstRemovedIndex = Integer.MAX_VALUE;
++
++        this.filteredSuccessor.removeElements(targetSize + 1, this.filteredSuccessor.size());
++        this.allElements.removeElements(targetSize, this.allElements.size());
++        this.filteredElementsMask.clear(targetSize, this.filteredElementsMask.size());
++
++        this.filteredSuccessor.trim(targetSize * 4);
++        this.allElements.trim(targetSize * 4);
++        this.allElements2Index.trim(targetSize * 4);
++    }
++
++    public Iterator<T> filteredIterator() {
++        return new Iterator<T>() {
++            int next = MaskedTickingBlockEntityList.this.filteredSuccessor.getInt(0);
++            T prev;
++
++            @Override
++            public boolean hasNext() {
++                return this.next != -1;
++            }
++
++            @Override
++            public T next() {
++                int next = this.next;
++                T prev = MaskedTickingBlockEntityList.this.allElements.get(next);
++                this.prev = prev;
++                this.next = MaskedTickingBlockEntityList.this.filteredSuccessor.getInt(next + 1);
++                return prev;
++            }
++
++            @Override
++            public void remove() {
++                MaskedTickingBlockEntityList.this.remove(this.prev);
++            }
++        };
++    }
++
++    @Override
++    public int size() {
++        return this.allElements2Index.size();
++    }
++
++    @Override
++    public boolean isEmpty() {
++        return this.size() == 0;
++    }
++
++    @Override
++    public boolean contains(Object o) {
++        //noinspection SuspiciousMethodCalls
++        return this.allElements2Index.containsKey(o);
++    }
++
++    @Override
++    public @NotNull Iterator<T> iterator() {
++        return Iterators.unmodifiableIterator(this.allElements2Index.keySet().iterator());
++    }
++
++    @Override
++    public Object[] toArray() {
++        return this.allElements2Index.keySet().toArray();
++    }
++
++    @NotNull
++    @Override
++    public <T1> T1[] toArray(@NotNull T1[] t1s) {
++        //noinspection SuspiciousToArrayCall
++        return this.allElements2Index.keySet().toArray(t1s);
++    }
++
++    @Override
++    public boolean add(T t) {
++        int arraySize = this.allElements.size();
++        int invalidEntries = arraySize - this.size();
++        //Compaction is done during the add operation as it is guaranteed to not happen during iteration
++        if ((arraySize > 2048 && invalidEntries > (arraySize >> 1)) || arraySize >= Integer.MAX_VALUE - 1 && invalidEntries != 0) {
++            this.compact();
++        }
++
++        if (!this.mayContain.test(t)) {
++            return false;
++        }
++
++        int index = this.allElements.size();
++        int i = this.allElements2Index.putIfAbsent(t, index);
++        if (i != -1) {
++            return false;
++        }
++        this.allElements.add(t);
++        this.filteredSuccessor.add(0);//increase size so setEntryVisible doesn't crash with indexOutOfBounds
++        this.setEntryVisible(index, true);
++
++        return true;
++    }
++
++    @Override
++    public boolean remove(Object o) {
++        int index = this.allElements2Index.removeInt(o);
++        if (index == -1) {
++            return false;
++        }
++        this.setEntryVisible(index, false);
++        this.allElements.set(index, null);
++        this.firstRemovedIndex = Math.min(this.firstRemovedIndex, index);
++        return true;
++    }
++
++    @Override
++    public boolean containsAll(@NotNull Collection<?> c) {
++        return this.allElements2Index.keySet().containsAll(c);
++    }
++
++    @Override
++    public boolean addAll(@NotNull Collection<? extends T> c) {
++        boolean b = false;
++        for (T t : c) {
++            this.add(t);
++            b = true;
++        }
++        return b;
++    }
++
++    @Override
++    public boolean addAll(int index, @NotNull Collection<? extends T> c) {
++        throw new UnsupportedOperationException();
++    }
++
++    @Override
++    public boolean removeAll(@NotNull Collection<?> c) {
++        boolean b = false;
++        for (Object t : c) {
++            b |= this.remove(t);
++        }
++        return b;
++    }
++
++    @Override
++    public boolean retainAll(@NotNull Collection<?> c) {
++        throw new UnsupportedOperationException();
++    }
++
++    @Override
++    public void clear() {
++        this.allElements2Index.clear();
++        this.allElements.clear();
++        this.filteredSuccessor.clear();
++        this.filteredElementsMask.clear();
++        this.firstRemovedIndex = Integer.MAX_VALUE;
++        this.filteredSuccessor.add(-1);
++    }
++
++    @Override
++    public T get(int index) {
++        throw new UnsupportedOperationException();
++    }
++
++    @Override
++    public T set(int index, T element) {
++        throw new UnsupportedOperationException();
++    }
++
++    @Override
++    public void add(int index, T element) {
++        throw new UnsupportedOperationException();
++    }
++
++    @Override
++    public T remove(int index) {
++        throw new UnsupportedOperationException();
++    }
++
++    @Override
++    public int indexOf(Object o) {
++        throw new UnsupportedOperationException();
++    }
++
++    @Override
++    public int lastIndexOf(Object o) {
++        throw new UnsupportedOperationException();
++    }
++
++    @Override
++    public @NotNull ListIterator<T> listIterator() {
++        throw new UnsupportedOperationException();
++    }
++
++    @Override
++    public @NotNull ListIterator<T> listIterator(int index) {
++        throw new UnsupportedOperationException();
++    }
++
++    @Override
++    public @NotNull List<T> subList(int fromIndex, int toIndex) {
++        throw new UnsupportedOperationException();
++    }
++}
+\ No newline at end of file
+diff --git a/src/main/java/me/jellysquid/mods/lithium/common/world/blockentity/BlockEntitySleepTracker.java b/src/main/java/me/jellysquid/mods/lithium/common/world/blockentity/BlockEntitySleepTracker.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..32fa69fca73341dcccb56990de3d8392c909b925
+--- /dev/null
++++ b/src/main/java/me/jellysquid/mods/lithium/common/world/blockentity/BlockEntitySleepTracker.java
+@@ -0,0 +1,7 @@
++package me.jellysquid.mods.lithium.common.world.blockentity;
++
++import net.minecraft.world.level.block.entity.BlockEntity;
++
++public interface BlockEntitySleepTracker {
++    void setAwake(BlockEntity tileEntity, boolean needsTicking);
++}
+diff --git a/src/main/java/me/jellysquid/mods/lithium/common/world/blockentity/SleepingBlockEntity.java b/src/main/java/me/jellysquid/mods/lithium/common/world/blockentity/SleepingBlockEntity.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..9e7c4c1fc90e49971e84a3d5de9fe48eafa630c8
+--- /dev/null
++++ b/src/main/java/me/jellysquid/mods/lithium/common/world/blockentity/SleepingBlockEntity.java
+@@ -0,0 +1,7 @@
++package me.jellysquid.mods.lithium.common.world.blockentity;
++
++public interface SleepingBlockEntity {
++    default boolean canTickOnSide(boolean isClient) {
++        return true;
++    }
++}
+diff --git a/src/main/java/net/minecraft/world/level/Level.java b/src/main/java/net/minecraft/world/level/Level.java
+index 90aa1d75b5c23e5ee27ceae9f6ef90de913a6601..546292cf09d4982c1da4cb5d0d1de96335aba8cc 100644
+--- a/src/main/java/net/minecraft/world/level/Level.java
++++ b/src/main/java/net/minecraft/world/level/Level.java
+@@ -101,7 +101,13 @@ import org.bukkit.event.block.BlockPhysicsEvent;
+ import org.bukkit.event.world.GenericGameEvent;
+ // CraftBukkit end
+ 
+-public abstract class Level implements LevelAccessor, AutoCloseable {
++// Brilliant - Port Yatopia start
++import me.jellysquid.mods.lithium.common.util.collections.MaskedTickingBlockEntityList;
++import me.jellysquid.mods.lithium.common.world.blockentity.BlockEntitySleepTracker;
++import me.jellysquid.mods.lithium.common.world.blockentity.SleepingBlockEntity;
++// Brilliant - Port Yatopia end
++
++public abstract class Level implements LevelAccessor, AutoCloseable, BlockEntitySleepTracker {
+ 
+     protected static final Logger LOGGER = LogManager.getLogger();
+     public static final Codec<ResourceKey<Level>> RESOURCE_KEY_CODEC = ResourceLocation.CODEC.xmap(ResourceKey.elementKey(Registry.DIMENSION_REGISTRY), ResourceKey::location);
+@@ -177,6 +183,16 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
+     public final Map<Explosion.CacheKey, Float> explosionDensityCache = new HashMap<>(); // Paper - Optimize explosions
+     public java.util.ArrayDeque<net.minecraft.world.level.block.RedstoneTorchBlock.Toggle> redstoneUpdateInfos; // Paper - Move from Map in BlockRedstoneTorch to here
+ 
++    public List<BlockEntity> tileEntityListTick = me.jellysquid.mods.lithium.common.util.collections.HashedList.wrapper(Lists.newArrayList()); // Brilliant - Port Yatopia
++    // Brilliant - Port Yatopia start - lithium: skip ticking block entities that are doing nothing
++    private MaskedTickingBlockEntityList<BlockEntity> tileEntityListTick$lithium;
++
++    @Override
++    public void setAwake(BlockEntity tileEntity, boolean needsTicking) {
++        this.tileEntityListTick$lithium.setEntryVisible(tileEntity, needsTicking);
++    }
++     // Brilliant - Port Yatopia end
++
+     // Paper start - fix and optimise world upgrading
+     // copied from below
+     public static ResourceKey<DimensionType> getDimensionKey(DimensionType manager) {
+@@ -402,6 +418,8 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
+         this.tileLimiter = new org.spigotmc.TickLimiter(spigotConfig.tileMaxTickTime);
+         this.chunkPacketBlockController = this.paperConfig.antiXray ? new com.destroystokyo.paper.antixray.ChunkPacketBlockControllerAntiXray(this, executor) : com.destroystokyo.paper.antixray.ChunkPacketBlockController.NO_OPERATION_INSTANCE; // Paper - Anti-Xray
+         this.entitySliceManager = new io.papermc.paper.world.EntitySliceManager((ServerLevel)this); // Paper
++        this.tileEntityListTick$lithium = new MaskedTickingBlockEntityList<>(this.tileEntityListTick, blockEntity -> ((SleepingBlockEntity) blockEntity).canTickOnSide(false)); // Brilliant - Port Yatopia
++        this.tileEntityListTick = tileEntityListTick$lithium; // Brilliant - Port Yatopia
+     }
+ 
+     // Paper start
+@@ -1019,6 +1037,15 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
+         (this.tickingBlockEntities ? this.pendingBlockEntityTickers : this.blockEntityTickers).add(ticker);
+     }
+ 
++    // Brilliant - Port Yatopia start - lithium: skip ticking block entities that are doing nothing
++    public Iterator<BlockEntity> getAwakeBlockEntities(List<BlockEntity> list) {
++        if (list == this.tileEntityListTick && list instanceof MaskedTickingBlockEntityList) {
++            return ((MaskedTickingBlockEntityList<BlockEntity>) list).filteredIterator();
++        }
++        return list.iterator();
++    }
++    // Brilliant - Port Yatopia end
++
+     protected void tickBlockEntities() {
+         ProfilerFiller gameprofilerfiller = this.getProfiler();
+ 
+@@ -1033,25 +1060,33 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
+ 
+         timings.tileEntityTick.startTiming(); // Spigot
+         // Spigot start
++        // Brilliant - Port Yatopia start - lithium: skip ticking block entities that are doing nothing
+         // Iterator iterator = this.blockEntityTickers.iterator();
++        Iterator iterator = getAwakeBlockEntities(this.tileEntityListTick);
++
+         int tilesThisCycle = 0;
+         var toRemove = new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<TickingBlockEntity>(net.minecraft.Util.identityStrategy()); // Paper - use removeAll
+         toRemove.add(null);
++
++        while (iterator.hasNext()) {
++            TickingBlockEntity tickingblockentity = (TickingBlockEntity) iterator.next();
++            /*
+         for (tileTickPosition = 0; tileTickPosition < this.blockEntityTickers.size(); tileTickPosition++) { // Paper - Disable tick limiters
+             this.tileTickPosition = (this.tileTickPosition < this.blockEntityTickers.size()) ? this.tileTickPosition : 0;
+             TickingBlockEntity tickingblockentity = (TickingBlockEntity) this.blockEntityTickers.get(tileTickPosition);
++            */
++            // Brilliant - Port Yatopia end
+             // Spigot start
+             if (tickingblockentity == null) {
+                 this.getCraftServer().getLogger().severe("Spigot has detected a null entity and has removed it, preventing a crash");
+-                tilesThisCycle--;
++                iterator.remove(); // Brilliant - Port Yatopia
+                 continue;
+             }
+             // Spigot end
+ 
+             if (tickingblockentity.isRemoved()) {
+                 // Spigot start
+-                tilesThisCycle--;
+-                toRemove.add(tickingblockentity); // Paper - use removeAll
++                iterator.remove(); // Brilliant - Port Yatopia
+                 // Spigot end
+             } else if (this.shouldTickBlocksAt(ChunkPos.asLong(tickingblockentity.getPos()))) {
+                 tickingblockentity.tick();
+diff --git a/src/main/java/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.java b/src/main/java/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.java
+index 70a3ed65c8f70fe517218ac1d5e26d224c39436c..4e84df7ec3ec209e5a88d6c06171a87a4c370751 100644
+--- a/src/main/java/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.java
++++ b/src/main/java/net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity.java
+@@ -80,6 +80,8 @@ public abstract class AbstractFurnaceBlockEntity extends BaseContainerBlockEntit
+     private final Object2IntOpenHashMap<ResourceLocation> recipesUsed;
+     public final RecipeType<? extends AbstractCookingRecipe> recipeType;
+ 
++    private boolean isTicking = true; // Yatopia
++
+     protected AbstractFurnaceBlockEntity(BlockEntityType<?> blockEntityType, BlockPos pos, BlockState state, RecipeType<? extends AbstractCookingRecipe> recipeType) {
+         super(blockEntityType, pos, state);
+         this.items = NonNullList.withSize(3, ItemStack.EMPTY);
+@@ -204,6 +206,17 @@ public abstract class AbstractFurnaceBlockEntity extends BaseContainerBlockEntit
+         // Paper end
+     }
+ 
++    // Yatopia start - lithium: skip ticking block entities that are doing nothing
++    @Override
++    public void setChanged() {
++        super.setChanged();
++        if (!this.isTicking && this.level != null) {
++            this.isTicking = true;
++            this.level.setAwake(this, true);
++        }
++    }
++    // Yatopia end
++
+     // CraftBukkit start - add fields and methods
+     private int maxStack = MAX_STACK;
+     public List<HumanEntity> transaction = new java.util.ArrayList<HumanEntity>();
+@@ -270,6 +283,12 @@ public abstract class AbstractFurnaceBlockEntity extends BaseContainerBlockEntit
+     @Override
+     public void load(CompoundTag nbt) {
+         super.load(nbt);
++
++        if (!this.isTicking && this.level != null) {
++            this.isTicking = true;
++            this.level.setAwake(this, true);
++        }
++
+         this.items = NonNullList.withSize(this.getContainerSize(), ItemStack.EMPTY);
+         ContainerHelper.loadAllItems(nbt, this.items);
+         this.litTime = nbt.getShort("BurnTime");
+@@ -396,6 +415,12 @@ public abstract class AbstractFurnaceBlockEntity extends BaseContainerBlockEntit
+             setChanged(world, pos, state);
+         }
+ 
++        // Brilliant - Port Yatopia start - lithium: skip ticking block entities that are doing nothing
++        if (!blockEntity.isTicking && blockEntity.level != null) {
++            blockEntity.isTicking = true;
++            blockEntity.level.setAwake(blockEntity, true);
++        }
++        // Brilliant - Port Yatopia end
+     }
+ 
+     private static boolean canBurn(@Nullable Recipe<?> recipe, NonNullList<ItemStack> slots, int count) {
+diff --git a/src/main/java/net/minecraft/world/level/block/entity/BeehiveBlockEntity.java b/src/main/java/net/minecraft/world/level/block/entity/BeehiveBlockEntity.java
+index b05ac56823feaf062b1418c9e6dbe4268225f00f..0621a47b089b1de74bc8858fc23c9641c028f8f0 100644
+--- a/src/main/java/net/minecraft/world/level/block/entity/BeehiveBlockEntity.java
++++ b/src/main/java/net/minecraft/world/level/block/entity/BeehiveBlockEntity.java
+@@ -5,6 +5,8 @@ import java.util.Arrays;
+ import java.util.Iterator;
+ import java.util.List;
+ import javax.annotation.Nullable;
++
++import me.jellysquid.mods.lithium.common.world.blockentity.BlockEntitySleepTracker;
+ import net.minecraft.core.BlockPos;
+ import net.minecraft.core.Direction;
+ import net.minecraft.nbt.CompoundTag;
+@@ -45,10 +47,24 @@ public class BeehiveBlockEntity extends BlockEntity {
+     public BlockPos savedFlowerPos;
+     public int maxBees = 3; // CraftBukkit - allow setting max amount of bees a hive can hold
+ 
++    public boolean doInit = true; // Brilliant - Port Yatopia start
++    public boolean isTicking = true; // Brilliant - Port Yatopia start
++
+     public BeehiveBlockEntity(BlockPos pos, BlockState state) {
+         super(BlockEntityType.BEEHIVE, pos, state);
+     }
+ 
++    // Brilliant - Yatopia start - lithium: skip ticking block entities that are doing nothing
++    public void checkSleepState() {
++        if (this.level != null ) {
++            if ((this.stored.size() == 0) == this.isTicking) {
++                this.isTicking = !this.isTicking;
++                this.level.setAwake(this, this.isTicking);
++            }
++        }
++    }
++   // Brilliant - Yatopia end
++
+     @Override
+     public void setChanged() {
+         if (this.isFireNearby()) {
+@@ -346,6 +362,13 @@ public class BeehiveBlockEntity extends BlockEntity {
+     }
+ 
+     public static void serverTick(Level world, BlockPos pos, BlockState state, BeehiveBlockEntity blockEntity) {
++        // Brilliant - Port Yatopia start - lithium: skip ticking block entities that are doing nothing
++        if (blockEntity.doInit) {
++            blockEntity.doInit = false;
++            blockEntity.checkSleepState();
++        }
++        // Brilliant - Port Yatopia end
++
+         BeehiveBlockEntity.tickOccupants(world, pos, state, blockEntity.stored, blockEntity.savedFlowerPos);
+         if (!blockEntity.stored.isEmpty() && world.getRandom().nextDouble() < 0.005D) {
+             double d0 = (double) pos.getX() + 0.5D;
+@@ -362,6 +385,7 @@ public class BeehiveBlockEntity extends BlockEntity {
+     public void load(CompoundTag nbt) {
+         super.load(nbt);
+         this.stored.clear();
++        this.checkSleepState(); // Brilliant - Port Yatopia
+         ListTag nbttaglist = nbt.getList("Bees", 10);
+ 
+         for (int i = 0; i < nbttaglist.size(); ++i) {
+diff --git a/src/main/java/net/minecraft/world/level/block/entity/BellBlockEntity.java b/src/main/java/net/minecraft/world/level/block/entity/BellBlockEntity.java
+index 41e139c750dd3aadb7692e362e2d83f43799c905..eefe976a26586950cbbd60c8057246eaa777502f 100644
+--- a/src/main/java/net/minecraft/world/level/block/entity/BellBlockEntity.java
++++ b/src/main/java/net/minecraft/world/level/block/entity/BellBlockEntity.java
+@@ -42,6 +42,12 @@ public class BellBlockEntity extends BlockEntity {
+ 
+     @Override
+     public boolean triggerEvent(int type, int data) {
++        // Brilliant - Yatopia start - lithium: skip ticking block entities that are doing nothing
++        if (!this.shaking && type == 1 && this.level != null) {
++           this.level.setAwake(this, true);
++        }
++        // Brilliant - Yatopia end
++
+         if (type == 1) {
+             this.updateEntities();
+             this.resonationTicks = 0;
+@@ -95,6 +101,11 @@ public class BellBlockEntity extends BlockEntity {
+     }
+ 
+     public void onHit(Direction direction) {
++        // Brilliant - Port Yatopia start - lithium: skip ticking block entities that are doing nothing
++        if (!this.shaking && this.level != null) {
++            this.level.setAwake(this, true);
++        }
++        // Brilliant - Port Yatopia end
+         BlockPos blockPos = this.getBlockPos();
+         this.clickDirection = direction;
+         if (this.shaking) {
+diff --git a/src/main/java/net/minecraft/world/level/block/entity/BlockEntity.java b/src/main/java/net/minecraft/world/level/block/entity/BlockEntity.java
+index 5601d0c2fe635a2a4f073c333531e1a8adf1833c..b97c3891f664a00e142bd7586c56258c325cad9b 100644
+--- a/src/main/java/net/minecraft/world/level/block/entity/BlockEntity.java
++++ b/src/main/java/net/minecraft/world/level/block/entity/BlockEntity.java
+@@ -1,6 +1,8 @@
+ package net.minecraft.world.level.block.entity;
+ 
+ import javax.annotation.Nullable;
++
++import me.jellysquid.mods.lithium.common.world.blockentity.BlockEntitySleepTracker;
+ import net.minecraft.CrashReportCategory;
+ import net.minecraft.core.BlockPos;
+ import net.minecraft.core.Registry;
+@@ -25,7 +27,9 @@ import org.spigotmc.CustomTimingsHandler; // Spigot
+ import co.aikar.timings.MinecraftTimings; // Paper
+ import co.aikar.timings.Timing; // Paper
+ 
+-public abstract class BlockEntity implements io.papermc.paper.util.KeyedObject { // Paper
++import me.jellysquid.mods.lithium.common.world.blockentity.SleepingBlockEntity; // Brilliant - Port Yatopia
++
++public abstract class BlockEntity implements io.papermc.paper.util.KeyedObject, SleepingBlockEntity { // Paper
+ 
+     public Timing tickTimer = MinecraftTimings.getTileEntityTimings(this); // Paper
+     // CraftBukkit start - data containers
+diff --git a/src/main/java/net/minecraft/world/level/block/entity/BrewingStandBlockEntity.java b/src/main/java/net/minecraft/world/level/block/entity/BrewingStandBlockEntity.java
+index 287205bce7f655f9a6b815f40d349c3db4c1e788..a42ebf6296dc68baa9ab2bdd9ae50b2615df7727 100644
+--- a/src/main/java/net/minecraft/world/level/block/entity/BrewingStandBlockEntity.java
++++ b/src/main/java/net/minecraft/world/level/block/entity/BrewingStandBlockEntity.java
+@@ -36,6 +36,7 @@ import org.bukkit.event.inventory.BrewEvent;
+ import org.bukkit.event.inventory.BrewingStandFuelEvent;
+ import org.bukkit.inventory.InventoryHolder;
+ // CraftBukkit end
++import me.jellysquid.mods.lithium.common.world.blockentity.BlockEntitySleepTracker;
+ 
+ public class BrewingStandBlockEntity extends BaseContainerBlockEntity implements WorldlyContainer {
+ 
+@@ -59,6 +60,8 @@ public class BrewingStandBlockEntity extends BaseContainerBlockEntity implements
+     public List<HumanEntity> transaction = new java.util.ArrayList<HumanEntity>();
+     private int maxStack = 64;
+ 
++    public boolean isTicking = true; // Brilliant - Port Yatopia
++
+     public void onOpen(CraftHumanEntity who) {
+         this.transaction.add(who);
+     }
+@@ -80,6 +83,17 @@ public class BrewingStandBlockEntity extends BaseContainerBlockEntity implements
+         return this.maxStack;
+     }
+ 
++    // Yatopia start - lithium: skip ticking block entities that are doing nothing
++    @Override
++    public void setChanged() {
++        super.setChanged();
++        if (!this.isTicking && this.level != null) {
++            this.isTicking = true;
++            this.level.setAwake(this, true);
++        }
++    }
++    // Yatopia end
++
+     public void setMaxStackSize(int size) {
+         this.maxStack = size;
+     }
+@@ -148,6 +162,13 @@ public class BrewingStandBlockEntity extends BaseContainerBlockEntity implements
+     }
+ 
+     public static void serverTick(Level world, BlockPos pos, BlockState state, BrewingStandBlockEntity blockEntity) {
++        // Yatopia start - lithium: skip ticking block entities that are doing nothing
++        if (blockEntity.brewTime == 0 && blockEntity.level != null) {
++            blockEntity.isTicking = false;
++            blockEntity.level.setAwake(blockEntity, false);
++        }
++        // Yatopia end
++
+         ItemStack itemstack = (ItemStack) blockEntity.items.get(4);
+ 
+         if (blockEntity.fuel <= 0 && itemstack.is(Items.BLAZE_POWDER)) {
+@@ -292,6 +313,13 @@ public class BrewingStandBlockEntity extends BaseContainerBlockEntity implements
+     @Override
+     public void load(CompoundTag nbt) {
+         super.load(nbt);
++        // Brilliant - Port Yatopia start - lithium: skip ticking block entities that are doing nothing
++        if (!this.isTicking && this.level != null) {
++            this.isTicking = true;
++            this.level.setAwake(this, true);
++        }
++        // Brilliant - Port Yatopia Yatopia end
++
+         this.items = NonNullList.withSize(this.getContainerSize(), ItemStack.EMPTY);
+         ContainerHelper.loadAllItems(nbt, this.items);
+         this.brewTime = nbt.getShort("BrewTime");
+diff --git a/src/main/java/net/minecraft/world/level/block/entity/CampfireBlockEntity.java b/src/main/java/net/minecraft/world/level/block/entity/CampfireBlockEntity.java
+index 073ec046c1c09436dfca34045acc5df12ab82eda..8ef5f6b14e97068dfd406e994d5453b835787d5b 100644
+--- a/src/main/java/net/minecraft/world/level/block/entity/CampfireBlockEntity.java
++++ b/src/main/java/net/minecraft/world/level/block/entity/CampfireBlockEntity.java
+@@ -25,6 +25,8 @@ import org.bukkit.craftbukkit.inventory.CraftItemStack;
+ import org.bukkit.event.block.BlockCookEvent;
+ // CraftBukkit end
+ 
++import me.jellysquid.mods.lithium.common.world.blockentity.BlockEntitySleepTracker;
++
+ public class CampfireBlockEntity extends BlockEntity implements Clearable {
+ 
+     private static final int BURN_COOL_SPEED = 2;
+@@ -34,6 +36,11 @@ public class CampfireBlockEntity extends BlockEntity implements Clearable {
+     public final int[] cookingTime;
+     public final boolean[] stopCooking; // Paper
+ 
++    // Brilliant - Port Yatopia start - lithium: skip ticking block entities that are doing nothing
++    public boolean isTicking = true;
++    public boolean doInit = true;
++    // Brilliant - Yatopia end
++
+     public CampfireBlockEntity(BlockPos pos, BlockState state) {
+         super(BlockEntityType.CAMPFIRE, pos, state);
+         this.items = NonNullList.withSize(4, ItemStack.EMPTY);
+@@ -42,7 +49,44 @@ public class CampfireBlockEntity extends BlockEntity implements Clearable {
+         this.stopCooking = new boolean[4]; // Paper
+     }
+ 
++    // Brilliant - Port Yatopia start - lithium: skip ticking block entities that are doing nothing
++    @Override
++    public void setChanged() {
++        super.setChanged();
++        this.checkSleepState();
++    }
++
++    // todo: bring invalidateBlockCache back
++
++    public void checkSleepState() {
++        if (this.level == null) {
++            return;
++        }
++        boolean shouldTick = false;
++        NonNullList<ItemStack> beingCooked = this.items;
++        for (int i = 0; i < beingCooked.size(); i++) {
++            ItemStack stack = beingCooked.get(i);
++            if (!stack.isEmpty()) {
++                if (this.cookingTime[i] > 0 || this.getBlockState().getValue(CampfireBlock.LIT)) {
++                    shouldTick = true;
++                    break;
++                }
++            }
++        }
++        if (shouldTick != this.isTicking) {
++            this.isTicking = shouldTick;
++            this.level.setAwake(this, shouldTick);
++        }
++    }
++    // Brilliant - Port Yatopia end
++
+     public static void cookTick(Level world, BlockPos pos, BlockState state, CampfireBlockEntity campfire) {
++        // Brilliant - Port Yatopia start - lithium: skip ticking block entities that are doing nothing
++        if (campfire.doInit) {
++            campfire.doInit = false;
++            campfire.checkSleepState();
++        }
++        // Yatopia end
+         boolean flag = false;
+ 
+         for (int i = 0; i < campfire.items.size(); ++i) {
+@@ -145,6 +189,7 @@ public class CampfireBlockEntity extends BlockEntity implements Clearable {
+     @Override
+     public void load(CompoundTag nbt) {
+         super.load(nbt);
++        this.checkSleepState(); // Brilliant - Port Yatopia - lithium: skip ticking block entities that are doing nothing
+         this.items.clear();
+         ContainerHelper.loadAllItems(nbt, this.items);
+         int[] aint;
+diff --git a/src/main/java/net/minecraft/world/level/block/entity/ChestBlockEntity.java b/src/main/java/net/minecraft/world/level/block/entity/ChestBlockEntity.java
+index 066f43deb5df6f79428eb0f325c2abfb31ea9254..ee4ad8482733d3b489df7fe318ad0b3105781c34 100644
+--- a/src/main/java/net/minecraft/world/level/block/entity/ChestBlockEntity.java
++++ b/src/main/java/net/minecraft/world/level/block/entity/ChestBlockEntity.java
+@@ -37,12 +37,19 @@ public class ChestBlockEntity extends RandomizableContainerBlockEntity implement
+     private gg.airplane.structs.ItemListWithBitset optimizedItems;
+     // Pufferfish end
+     public final ContainerOpenersCounter openersCounter;
+-    private final ChestLidController chestLidController;
++    protected final ChestLidController chestLidController;
+ 
+     // CraftBukkit start - add fields and methods
+     public List<HumanEntity> transaction = new java.util.ArrayList<HumanEntity>();
+     private int maxStack = MAX_STACK;
+ 
++    // Brilliant - Port Yatopia start - lithium: skip ticking block entities that are doing nothing
++    public void checkWakeUp() {
++        if ((this.openersCounter.getOpenerCount() != 0 || this.chestLidController.getOpenness(1) > 0.0F) && this.level != null) {
++            this.level.setAwake(this, true);
++        }
++    }
++
+     public List<ItemStack> getContents() {
+         return this.items;
+     }
+@@ -161,6 +168,9 @@ public class ChestBlockEntity extends RandomizableContainerBlockEntity implement
+ 
+     public static void lidAnimateTick(Level world, BlockPos pos, BlockState state, ChestBlockEntity blockEntity) {
+         blockEntity.chestLidController.tickLid();
++        if (blockEntity.openersCounter.getOpenerCount() == 0 && blockEntity.chestLidController.getOpenness(1) == 0.0F && blockEntity.level != null) {
++            blockEntity.level.setAwake(blockEntity, false);
++        }
+     }
+ 
+     public static void playSound(Level world, BlockPos pos, BlockState state, SoundEvent soundEvent) {
+@@ -184,6 +194,7 @@ public class ChestBlockEntity extends RandomizableContainerBlockEntity implement
+ 
+     @Override
+     public boolean triggerEvent(int type, int data) {
++        this.checkWakeUp(); //  Brilliant - Port Yatopia - lithium: skip ticking block entities that are doing nothing
+         if (type == 1) {
+             this.chestLidController.shouldBeOpen(data > 0);
+             return true;

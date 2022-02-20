@@ -1,0 +1,55 @@
+name: Build Main
+on: [ push ]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        java: [ 17 ]
+      fail-fast: true
+    steps:
+      - name: Checkout Git Repository
+        uses: actions/checkout@v2
+      - name: Validate Gradle Wrapper
+        uses: gradle/wrapper-validation-action@v1
+      - name: Set up JDK
+        uses: actions/setup-java@v2
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: 'adopt'
+      - name: Configure Git
+        run: |
+          git config --global user.email "no-reply@github.com"
+          git config --global user.name "Github Actions"
+      - name: Patch Brilliant
+        run: |
+          ./gradlew applyPatches --stacktrace --no-daemon
+      - name: Build Brilliant
+        run: |
+          ./gradlew createReobfPaperclipJar --stacktrace --no-daemon
+      - name: Set outputs
+        id: vars
+        run: echo "::set-output name=sha_short::$(git rev-parse --short HEAD)"
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
+        with:
+          tag_name: ${{ steps.vars.outputs.sha_short }}
+          release_name: 'Brilliant ver/1.18 "${{ steps.vars.outputs.sha_short }}"'
+          body: |
+            This is a Auto-Release by GitHub Actions,
+            **DO NOT** use it on production environment.
+          draft: false
+          prerelease: true
+      - name: Upload Release Asset
+        id: upload-release-asset 
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
+          asset_path: ./build/libs/Brilliant-paperclip-1.18.1-R0.1-SNAPSHOT-reobf.jar
+          asset_name: brilliant.jar
+          asset_content_type: application/java-archive

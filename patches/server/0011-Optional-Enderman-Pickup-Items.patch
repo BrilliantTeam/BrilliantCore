@@ -1,0 +1,56 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: skyouo0727 <anwugame@gmail.com>
+Date: Sun, 20 Feb 2022 22:53:29 +0800
+Subject: [PATCH] Optional Enderman Pickup Items
+
+
+diff --git a/src/main/java/net/minecraft/world/entity/monster/EnderMan.java b/src/main/java/net/minecraft/world/entity/monster/EnderMan.java
+index 5e207a3ea30ead2749c1121e2df8da53c8ebfdd7..22e6c1033b510c89ab3b3e439cdd26f046ae6423 100644
+--- a/src/main/java/net/minecraft/world/entity/monster/EnderMan.java
++++ b/src/main/java/net/minecraft/world/entity/monster/EnderMan.java
+@@ -65,6 +65,7 @@ import net.minecraft.world.level.pathfinder.BlockPathTypes;
+ import net.minecraft.world.phys.AABB;
+ import net.minecraft.world.phys.BlockHitResult;
+ import net.minecraft.world.phys.Vec3;
++import tech.skyouo.brilliant.BrilliantConfig;
+ 
+ public class EnderMan extends Monster implements NeutralMob {
+ 
+@@ -532,7 +533,7 @@ public class EnderMan extends Monster implements NeutralMob {
+ 
+         @Override
+         public boolean canUse() {
+-            return this.enderman.getCarriedBlock() != null ? false : (!this.enderman.level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING) ? false : this.enderman.getRandom().nextInt(reducedTickDelay(20)) == 0);
++            return (this.enderman.getCarriedBlock() != null ? false : (!this.enderman.level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING) ? false : this.enderman.getRandom().nextInt(reducedTickDelay(20)) == 0)) && BrilliantConfig.doEndermanPickupBlocks;
+         }
+ 
+         @Override
+diff --git a/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java b/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
+index 98c77e910c908a65a065667be82c74ae04e080a2..3e07c983423b634a6f6bb7befbc714849a1cc7e5 100644
+--- a/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
++++ b/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
+@@ -46,8 +46,8 @@ public class BrilliantConfig {
+         config.options().header(HEADER);
+         config.options().copyDefaults(true);
+ 
+-        version = getInt("config-version", 2);
+-        set("config-version", 2);
++        version = getInt("config-version", 3);
++        set("config-version", 3);
+ 
+         readConfig(BrilliantConfig.class, null);
+     }
+@@ -152,7 +152,12 @@ public class BrilliantConfig {
+     }
+ 
+     public static boolean doPlayersCollide = true;
+-    private  static void setDoPlayersCollide() {
++    private static void setDoPlayersCollide() {
+         doPlayersCollide = getBoolean("do-players-collide", true);
+     }
++
++    public static boolean doEndermanPickupBlocks = true;
++    private static void setDoEndermanPickupBlocks() {
++        doEndermanPickupBlocks = getBoolean("do-enderman-pickup-blocks", true);
++    }
+ }

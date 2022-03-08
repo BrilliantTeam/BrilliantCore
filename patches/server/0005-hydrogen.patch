@@ -6,7 +6,7 @@ Subject: [PATCH] hydrogen
 Based on code by Jellysquid under the LGPLv3 License at: https://github.com/CaffeineMC/hydrogen-fabric.
 This code specifically was taken from MeeniMc's PR implementing 1.18.x support here: https://github.com/CaffeineMC/hydrogen-fabric/pull/60
 
-Original author: [JettPack](https://gitlab.com/Titaniumtown/JettPack)
+Original author is JettPack, under GNU GPL v3.
 
 diff --git a/src/main/java/com/google/common/collect/HydrogenEntrySet.java b/src/main/java/com/google/common/collect/HydrogenEntrySet.java
 new file mode 100644

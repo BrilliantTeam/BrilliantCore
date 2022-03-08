@@ -3,6 +3,7 @@ From: skyouo0727 <anwugame@gmail.com>
 Date: Tue, 8 Mar 2022 12:00:50 +0800
 Subject: [PATCH] Lithium HashedReferenceList
 
+Original author is CaffeineMC, under GNU LGPL v3.
 
 diff --git a/src/main/java/me/jellysquid/mods/lithium/common/util/collections/HashedReferenceList.java b/src/main/java/me/jellysquid/mods/lithium/common/util/collections/HashedReferenceList.java
 new file mode 100644

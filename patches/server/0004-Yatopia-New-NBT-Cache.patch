@@ -1,0 +1,140 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: skyouo0727 <anwugame@gmail.com>
+Date: Tue, 8 Mar 2022 11:25:43 +0800
+Subject: [PATCH] Yatopia New NBT Cache
+
+
+diff --git a/src/main/java/net/minecraft/world/level/storage/PlayerDataStorage.java b/src/main/java/net/minecraft/world/level/storage/PlayerDataStorage.java
+index 601f8099f74e81c17600566b3c9b7a6dd39c9bcb..54598fb01f8573b90cc5d0794b4b05c9734c4e63 100644
+--- a/src/main/java/net/minecraft/world/level/storage/PlayerDataStorage.java
++++ b/src/main/java/net/minecraft/world/level/storage/PlayerDataStorage.java
+@@ -8,6 +8,7 @@ import net.minecraft.Util;
+ import net.minecraft.nbt.CompoundTag;
+ import net.minecraft.nbt.NbtIo;
+ import net.minecraft.nbt.NbtUtils;
++import net.minecraft.server.MCUtil;
+ import net.minecraft.server.level.ServerPlayer;
+ import net.minecraft.util.datafix.DataFixTypes;
+ import net.minecraft.world.entity.player.Player;
+@@ -17,6 +18,7 @@ import org.slf4j.Logger;
+ import java.io.FileInputStream;
+ import java.io.InputStream;
+ import org.bukkit.craftbukkit.entity.CraftPlayer;
++import org.yatopiamc.yatopia.server.cache.NBTCache;
+ // CraftBukkit end
+ 
+ public class PlayerDataStorage {
+@@ -25,6 +27,8 @@ public class PlayerDataStorage {
+     private final File playerDir;
+     protected final DataFixer fixerUpper;
+ 
++    private final NBTCache dataCache = new NBTCache(); // Brilliant - Port Yatopia - New nbt cache
++
+     public PlayerDataStorage(LevelStorageSource.LevelStorageAccess session, DataFixer dataFixer) {
+         this.fixerUpper = dataFixer;
+         this.playerDir = session.getLevelPath(LevelResource.PLAYER_DATA_DIR).toFile();
+@@ -37,11 +41,23 @@ public class PlayerDataStorage {
+             CompoundTag nbttagcompound = player.saveWithoutId(new CompoundTag());
+             File file = File.createTempFile(player.getStringUUID() + "-", ".dat", this.playerDir);
+ 
+-            NbtIo.writeCompressed(nbttagcompound, file);
+-            File file1 = new File(this.playerDir, player.getStringUUID() + ".dat");
+-            File file2 = new File(this.playerDir, player.getStringUUID() + ".dat_old");
++            Runnable task = () -> {
++                try {
++                    NbtIo.writeCompressed(nbttagcompound, file);
++                    File file1 = new File(this.playerDir, player.getStringUUID() + ".dat");
++                    File file2 = new File(this.playerDir, player.getStringUUID() + ".dat_old");
++
++                    Util.safeReplaceFile(file1, file, file2);
++                } catch (Exception exception) {
++                    PlayerDataStorage.LOGGER.warn("Failed to save player data for {}", player.getScoreboardName(), exception); // Paper
++                }
++            };
++
++            synchronized (this.dataCache){
++                this.dataCache.put(file, nbttagcompound);
++            }
+ 
+-            Util.safeReplaceFile(file1, file, file2);
++            MCUtil.asyncExecutor.execute(task);
+         } catch (Exception exception) {
+             PlayerDataStorage.LOGGER.warn("Failed to save player data for {}", player.getScoreboardName(), exception); // Paper
+         }
+@@ -56,9 +72,22 @@ public class PlayerDataStorage {
+             File file = new File(this.playerDir, player.getStringUUID() + ".dat");
+             // Spigot Start
+             boolean usingWrongFile = false;
+-            if ( org.bukkit.Bukkit.getOnlineMode() && !file.exists() ) // Paper - Check online mode first
++
++            // Brilliant - Port Yatopia start - New nbt cache
++            boolean normalFile = file.exists() && file.isFile(); // Akarin - ensures normal file
++            CompoundTag playerData;
++            synchronized (this.dataCache){
++                playerData = this.dataCache.get(file);
++            }
++
++
++            if (playerData == null && org.bukkit.Bukkit.getOnlineMode() && !normalFile ) // Paper - Check online mode first
+             {
+                 file = new File( this.playerDir, java.util.UUID.nameUUIDFromBytes( ( "OfflinePlayer:" + player.getScoreboardName() ).getBytes( "UTF-8" ) ).toString() + ".dat");
++                synchronized (this.dataCache) {
++                    playerData = this.dataCache.get(file);
++                }
++
+                 if ( file.exists() )
+                 {
+                     usingWrongFile = true;
+@@ -67,9 +96,12 @@ public class PlayerDataStorage {
+             }
+             // Spigot End
+ 
+-            if (file.exists() && file.isFile()) {
++            if (playerData != null) {
++                nbttagcompound = playerData;
++            } else if (normalFile) {
+                 nbttagcompound = NbtIo.readCompressed(file);
+             }
++            // Brilliant - Port Yatopia end
+             // Spigot Start
+             if ( usingWrongFile )
+             {
+diff --git a/src/main/java/org/yatopiamc/yatopia/server/cache/NBTCache.java b/src/main/java/org/yatopiamc/yatopia/server/cache/NBTCache.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..6c0c0c9494e07c9c432374410d2604ee38548086
+--- /dev/null
++++ b/src/main/java/org/yatopiamc/yatopia/server/cache/NBTCache.java
+@@ -0,0 +1,32 @@
++package org.yatopiamc.yatopia.server.cache;
++
++import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenCustomHashMap;
++import net.minecraft.server.MinecraftServer;
++import net.minecraft.nbt.CompoundTag;
++
++import java.io.File;
++
++public class NBTCache extends Object2ObjectLinkedOpenCustomHashMap<File, CompoundTag> {
++
++    public NBTCache() {
++        super(100, 0.75F, new Strategy<File>() {
++            @Override
++            public int hashCode(File k) {
++                return k.hashCode();
++            }
++
++            @Override
++            public boolean equals(File k, File k1) {
++                return k.equals(k1);
++            }
++        });
++    }
++
++    @Override
++    public CompoundTag put(File k, CompoundTag v) {
++        if (this.size() > MinecraftServer.getServer().getPlayerCount()) {
++            this.removeLast();
++        }
++        return super.putAndMoveToFirst(k, v);
++    }
++}
+\ No newline at end of file

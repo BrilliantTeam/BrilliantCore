@@ -1,6 +1,6 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: skyouo0727 <anwugame@gmail.com>
-Date: Tue, 8 Mar 2022 10:13:29 +0800
+Date: Mon, 31 Jan 2022 11:24:26 +0800
 Subject: [PATCH] Unlocking TPS Limit
 
 
@@ -29,20 +29,20 @@ index fa56cd09102a89692b42f1d14257990508c5c720..514eaf5bced00bc9f6b79879dfdad76a
      }
  }
 diff --git a/src/main/java/net/minecraft/server/Main.java b/src/main/java/net/minecraft/server/Main.java
-index 1e0d261439255091a6f61485c0747231fbd5b1db..7514f4ecd63b8d64e7d42e30be34bf4f9123e2d1 100644
+index e2c8f716af55ebb7e4233c2a3d6515f8f4a239fa..c19658ef6365bb148b16d89b86a06d32538ce83a 100644
 --- a/src/main/java/net/minecraft/server/Main.java
 +++ b/src/main/java/net/minecraft/server/Main.java
-@@ -198,6 +198,8 @@ public class Main {
-             AtomicReference<DynamicOps<Tag>> ops = new AtomicReference<>();
-             // CraftBukkit end
+@@ -156,6 +156,8 @@ public class Main {
+             LevelStorageSource.LevelStorageAccess convertable_conversionsession = convertable.createAccess(s, LevelStem.OVERWORLD);
+             LevelSummary worldinfo = convertable_conversionsession.getSummary();
  
-+            tech.skyouo.brilliant.BrilliantConfig.init(); // Brilliant - Load before MinecraftServer was created
++            tech.skyouo.brilliant.BrilliantConfig.init(); // Brilliant - Load before MinecraftServer was Created
 +
-             WorldStem worldstem;
- 
-             try {
+             if (worldinfo != null) {
+                 if (worldinfo.requiresManualConversion()) {
+                     Main.LOGGER.info("This world must be opened in an older version (like 1.6.4) to be safely converted");
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index e937ea026157e51fd46b14a5db8627439bc4e9f3..902e8853101367c2bb41d49ee0b45ce6cd7371a3 100644
+index e80ac1019262eba0ca6cea855858a4cd13510462..4cf5171a23766da2466b4b85b7e171b3327399ec 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -185,6 +185,7 @@ import org.bukkit.event.server.ServerLoadEvent;
@@ -53,16 +53,23 @@ index e937ea026157e51fd46b14a5db8627439bc4e9f3..902e8853101367c2bb41d49ee0b45ce6
  
  public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTask> implements CommandSource, AutoCloseable {
  
-@@ -193,7 +194,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -193,7 +194,6 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
      public static final String VANILLA_BRAND = "vanilla";
      private static final float AVERAGE_TICK_TIME_SMOOTHING = 0.8F;
      private static final int TICK_STATS_SPAN = 100;
 -    public static final int MS_PER_TICK = 50;
-+    public static final double MS_PER_TICK = (double) 1000 / MinecraftServer.TPS; // Brilliant
      private static final int OVERLOADED_THRESHOLD = 2000;
      private static final int OVERLOADED_WARNING_INTERVAL = 15000;
      public static final String LEVEL_STORAGE_PROTOCOL = "level";
-@@ -300,9 +301,9 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -208,7 +208,6 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+     private static final int MAX_TICK_LATENCY = 3;
+     public static final int ABSOLUTE_MAX_WORLD_SIZE = 29999984;
+     public static final LevelSettings DEMO_SETTINGS = new LevelSettings("Demo World", GameType.SURVIVAL, false, Difficulty.NORMAL, false, new GameRules(), DataPackConfig.DEFAULT);
+-    private static final long DELAYED_TASKS_TICK_EXTENSION = 50L;
+     public static final GameProfile ANONYMOUS_PLAYER_PROFILE = new GameProfile(Util.NIL_UUID, "Anonymous Player");
+     public LevelStorageSource.LevelStorageAccess storageSource;
+     public final PlayerDataStorage playerDataStorage;
+@@ -300,9 +299,11 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
      public boolean forceTicks; // Paper
      // CraftBukkit end
      // Spigot start
@@ -71,11 +78,13 @@ index e937ea026157e51fd46b14a5db8627439bc4e9f3..902e8853101367c2bb41d49ee0b45ce6
 -    private static final int SAMPLE_INTERVAL = 20; // Paper
 +    public static final int TPS = BrilliantConfig.tpsLimit; // Brilliant
 +    public static final int TICK_TIME = 1000000000 / MinecraftServer.TPS; // Brilliant
-+    private static final int SAMPLE_INTERVAL = BrilliantConfig.tpsLimit; // Paper // Brilliant
++    public static final double MS_PER_TICK = (double) 1000 / MinecraftServer.TPS; // Brilliant
++    private static final int SAMPLE_INTERVAL = MinecraftServer.TPS; // Paper // Brilliant
++    private static final double DELAYED_TASKS_TICK_EXTENSION = MinecraftServer.MS_PER_TICK; // Brilliant
      public final double[] recentTps = new double[ 3 ];
      public final SlackActivityAccountant slackActivityAccountant = new SlackActivityAccountant();
      // Spigot end
-@@ -1191,7 +1192,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1228,11 +1229,11 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
                      long i = ((curTime = System.nanoTime()) / (1000L * 1000L)) - this.nextTickTime; // Paper
  
                      if (i > 5000L && this.nextTickTime - this.lastOverloadWarning >= 30000L) { // CraftBukkit
@@ -84,7 +93,12 @@ index e937ea026157e51fd46b14a5db8627439bc4e9f3..902e8853101367c2bb41d49ee0b45ce6
  
                          if (this.server.getWarnOnOverload()) // CraftBukkit
                              MinecraftServer.LOGGER.warn("Can't keep up! Is the server overloaded? Running {}ms or {} ticks behind", i, j);
-@@ -1223,13 +1224,13 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+-                        this.nextTickTime += j * 50L;
++                        this.nextTickTime += j * MS_PER_TICK;
+                         this.lastOverloadWarning = this.nextTickTime;
+                     }
+ 
+@@ -1260,13 +1261,13 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
  
                      //MinecraftServer.currentTick = (int) (System.currentTimeMillis() / 50); // CraftBukkit // Paper - don't overwrite current tick time
                      lastTick = curTime;
@@ -100,7 +114,7 @@ index e937ea026157e51fd46b14a5db8627439bc4e9f3..902e8853101367c2bb41d49ee0b45ce6
                      this.waitUntilNextTick();
                      this.profiler.pop();
                      this.endMetricsRecordingTick();
-@@ -1458,7 +1459,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1470,7 +1471,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
  
          ++this.tickCount;
          this.tickChildren(shouldKeepTicking);
@@ -110,10 +124,10 @@ index e937ea026157e51fd46b14a5db8627439bc4e9f3..902e8853101367c2bb41d49ee0b45ce6
              this.status.setPlayers(new ServerStatus.Players(this.getMaxPlayers(), this.getPlayerCount()));
              if (!this.hidesOnlinePlayers()) {
 diff --git a/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java b/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
-index 27e90ca03275a42271bbe97ee1a63a355b098ede..ad5c0cac7c5cec6b2b44b64577021d9f99d1ba3d 100644
+index aae2dadabedb075fd1bc712f0226882b85f4551d..1055002a8d9af532892f7639a851bfb676b89860 100644
 --- a/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
 +++ b/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
-@@ -238,6 +238,8 @@ public class DedicatedServer extends MinecraftServer implements ServerInterface
+@@ -235,6 +235,8 @@ public class DedicatedServer extends MinecraftServer implements ServerInterface
          gg.pufferfish.pufferfish.PufferfishConfig.load(); // Pufferfish
          gg.pufferfish.pufferfish.PufferfishCommand.init(); // Pufferfish
  
@@ -123,42 +137,33 @@ index 27e90ca03275a42271bbe97ee1a63a355b098ede..ad5c0cac7c5cec6b2b44b64577021d9f
          this.setFlightAllowed(dedicatedserverproperties.allowFlight);
          this.setResourcePack(dedicatedserverproperties.resourcePack, this.getPackHash());
 diff --git a/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java b/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java
-index bc67e1a997d59408b00c333184d9f8dcc6cb262a..878be4cfe6b3bffcf374cb78a7234b67113a45e8 100644
+index 889a4804eaa128e2f79a4ea48b8aa796336576d1..697de170bddce31651d3c6efb0b74ec29610f85d 100644
 --- a/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java
 +++ b/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java
-@@ -316,7 +316,7 @@ public class ServerGamePacketListenerImpl implements ServerPlayerConnection, Ser
+@@ -319,7 +319,7 @@ public class ServerGamePacketListenerImpl implements ServerPlayerConnection, Ser
          ++this.tickCount;
          this.knownMovePacketCount = this.receivedMovePacketCount;
-         if (this.clientIsFloating && !this.player.isSleeping() && !this.player.isPassenger()) {
+         if (this.clientIsFloating && !this.player.isSleeping()) {
 -            if (++this.aboveGroundTickCount > 80) {
-+            if (++this.aboveGroundTickCount > MinecraftServer.TPS * 4) { // Brilliant
++            if (++this.aboveGroundTickCount > MinecraftServer.TPS * 4) {
                  ServerGamePacketListenerImpl.LOGGER.warn("{} was kicked for floating too long!", this.player.getName().getString());
                  this.disconnect(com.destroystokyo.paper.PaperConfig.flyingKickPlayerMessage, org.bukkit.event.player.PlayerKickEvent.Cause.FLYING_PLAYER); // Paper - use configurable kick message & kick event cause
                  return;
-@@ -335,7 +335,7 @@ public class ServerGamePacketListenerImpl implements ServerPlayerConnection, Ser
-             this.vehicleLastGoodY = this.lastVehicle.getY();
-             this.vehicleLastGoodZ = this.lastVehicle.getZ();
-             if (this.clientVehicleIsFloating && this.player.getRootVehicle().getControllingPassenger() == this.player) {
--                if (++this.aboveGroundVehicleTickCount > 80) {
-+                if (++this.aboveGroundVehicleTickCount > MinecraftServer.TPS * 4) { // Brilliant
-                     ServerGamePacketListenerImpl.LOGGER.warn("{} was kicked for floating a vehicle too long!", this.player.getName().getString());
-                     this.disconnect(com.destroystokyo.paper.PaperConfig.flyingKickVehicleMessage, org.bukkit.event.player.PlayerKickEvent.Cause.FLYING_VEHICLE); // Paper - use configurable kick message & kick event cause
-                     return;
 diff --git a/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java b/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
-index befcb501b4b1b6330bf3cd53e00e30b01efade6f..4287a18464ff707d7c49acda51bc327b5fe556ac 100644
+index 462d8c36166c63a4dc8fa74ac7f82859e6f4b83a..1d058e060602ba9514cf6a9fd4ebed2c4717fc95 100644
 --- a/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
 +++ b/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
-@@ -94,7 +94,7 @@ public class ServerLoginPacketListenerImpl implements ServerLoginPacketListener
+@@ -97,7 +97,7 @@ public class ServerLoginPacketListenerImpl implements ServerLoginPacketListener
              }
          }
  
 -        if (this.tick++ == 600) {
-+        if (this.tick++ == 30 * MinecraftServer.TPS) { // Brilliant
++        if (this.tick++ == MinecraftServer.TPS * 30) {
              this.disconnect(new TranslatableComponent("multiplayer.disconnect.slow_login"));
          }
  
 diff --git a/src/main/java/org/spigotmc/TicksPerSecondCommand.java b/src/main/java/org/spigotmc/TicksPerSecondCommand.java
-index 9bede6a26c08ede063c7a38f1149c811df14b258..3226eb1951b1a809f6744bb9d6b2a6c322886df1 100644
+index 9bede6a26c08ede063c7a38f1149c811df14b258..fe41db15d27f5f2c8203d2768cfbe0b32e3137b4 100644
 --- a/src/main/java/org/spigotmc/TicksPerSecondCommand.java
 +++ b/src/main/java/org/spigotmc/TicksPerSecondCommand.java
 @@ -47,7 +47,6 @@ public class TicksPerSecondCommand extends Command
@@ -167,14 +172,94 @@ index 9bede6a26c08ede063c7a38f1149c811df14b258..3226eb1951b1a809f6744bb9d6b2a6c3
      {
 -        return ( ( tps > 18.0 ) ? ChatColor.GREEN : ( tps > 16.0 ) ? ChatColor.YELLOW : ChatColor.RED ).toString()
 -                + ( ( tps > 21.0 ) ? "*" : "" ) + Math.min( Math.round( tps * 100.0 ) / 100.0, 20.0 ); // Paper - only print * at 21, we commonly peak to 20.02 as the tick sleep is not accurate enough, stop the noise
-+        return ( ( tps > (MinecraftServer.TPS * 0.9) ) ? ChatColor.GREEN : ( tps > (MinecraftServer.TPS * 0.8) ) ? ChatColor.YELLOW : ChatColor.RED ).toString() + ( ( tps > Integer.valueOf(MinecraftServer.TPS).doubleValue() ) ? "*" : "" ) + Math.min( Math.round( tps * 100.0 ) / 100.0, Integer.valueOf(MinecraftServer.TPS).doubleValue() ); // Paper - only print * at 21, we commonly peak to 20.02 as the tick sleep is not accurate enough, stop the noise // Brilliant - Overwrite it since tps is unlocked
++        return ( ( tps > (MinecraftServer.TPS * 0.9) ) ? ChatColor.GREEN : ( tps > (MinecraftServer.TPS * 0.8) ) ? ChatColor.YELLOW : ChatColor.RED ).toString() + ( ( tps > Integer.valueOf(MinecraftServer.TPS).doubleValue() ) ? "*" : "" ) + Math.min( Math.round( tps * 100.0 ) / 100.0, Integer.valueOf(MinecraftServer.TPS).doubleValue() ); // Paper - only print * at 21, we commonly peak to 20.02 as the tick sleep is not accurate enough, stop the noise
      }
  }
 diff --git a/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java b/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
-index 86da80f21b934162e96cef89e73dcb2c1a96e41b..5150512e8d7e862050c2f850439b170292d2c1f1 100644
+index 6e62d5b968641c3a4850e0ff74db211af31b4f10..7e41223c96d9ef8089b7ca90f5538d3a6d54f079 100644
 --- a/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
 +++ b/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
-@@ -146,4 +146,9 @@ public class BrilliantConfig {
+@@ -3,7 +3,6 @@ package tech.skyouo.brilliant;
+ import co.technove.flare.libs.com.google.common.collect.ImmutableMap;
+ import com.google.common.base.Throwables;
+ import net.minecraft.server.MinecraftServer;
+-import org.bukkit.Bukkit;
+ import org.bukkit.command.Command;
+ import org.bukkit.configuration.ConfigurationSection;
+ import org.bukkit.configuration.InvalidConfigurationException;
+@@ -18,6 +17,7 @@ import java.util.HashMap;
+ import java.util.List;
+ import java.util.Map;
+ import java.util.logging.Level;
++import java.util.logging.Logger;
+ 
+ public class BrilliantConfig {
+     private static final String HEADER = "This is the main configuration file for Brilliant. \n" +
+@@ -28,6 +28,8 @@ public class BrilliantConfig {
+ 
+     private static Map<String, Command> commands;
+ 
++    private static Logger logger = Logger.getLogger("Brilliant");
++
+     static int version;
+ 
+     public static void init() {
+@@ -38,28 +40,30 @@ public class BrilliantConfig {
+             config.load(CONFIG_FILE);
+         } catch (IOException ignore) {
+         } catch (InvalidConfigurationException ex) {
+-            Bukkit.getLogger().log(Level.SEVERE, "Could not load brilliant.yml, please correct your syntax errors", ex);
++            logger.log(Level.SEVERE, "Could not load brilliant.yml, please correct your syntax errors", ex);
+             throw Throwables.propagate(ex);
+         }
+         config.options().header(HEADER);
+         config.options().copyDefaults(true);
+ 
+-        commands = new HashMap<>();
+-        commands.put("brilliant", new BrilliantCommandHandler());
+-        registerCommands();
+-
+         version = getInt("config-version", 1);
+         set("config-version", 1);
+ 
+         readConfig(BrilliantConfig.class, null);
+     }
+ 
++    public static void lateInit() {
++        commands = new HashMap<>();
++        commands.put("brilliant", new BrilliantCommandHandler());
++        registerCommands();
++    }
++
+     protected static void log(String s) {
+         log(Level.INFO, s);
+     }
+ 
+     protected static void log(Level level, String s) {
+-        Bukkit.getLogger().log(level, s);
++        logger.log(level, s);
+     }
+ 
+     public static void registerCommands() {
+@@ -78,7 +82,7 @@ public class BrilliantConfig {
+                     } catch (InvocationTargetException ex) {
+                         throw Throwables.propagate(ex.getCause());
+                     } catch (Exception ex) {
+-                        Bukkit.getLogger().log(Level.SEVERE, "Error invoking " + method, ex);
++                        logger.log(Level.SEVERE, "Error invoking " + method, ex);
+                     }
+                 }
+             }
+@@ -87,7 +91,7 @@ public class BrilliantConfig {
+         try {
+             config.save(CONFIG_FILE);
+         } catch (IOException ex) {
+-            Bukkit.getLogger().log(Level.SEVERE, "Could not save " + CONFIG_FILE, ex);
++            logger.log(Level.SEVERE, "Could not save " + CONFIG_FILE, ex);
+         }
+     }
+ 
+@@ -141,4 +145,10 @@ public class BrilliantConfig {
          }
          return builder.build();
      }
@@ -183,4 +268,5 @@ index 86da80f21b934162e96cef89e73dcb2c1a96e41b..5150512e8d7e862050c2f850439b1702
 +    private static void setTpsLimit() {
 +        tpsLimit = getInt("tps.limit", 20);
 +    }
++
  }

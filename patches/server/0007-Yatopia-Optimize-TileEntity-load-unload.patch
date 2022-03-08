@@ -1,0 +1,31 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: skyouo0727 <anwugame@gmail.com>
+Date: Tue, 8 Mar 2022 12:01:57 +0800
+Subject: [PATCH] Yatopia Optimize TileEntity load/unload
+
+
+diff --git a/src/main/java/net/minecraft/world/level/Level.java b/src/main/java/net/minecraft/world/level/Level.java
+index 0268b2a954bb1558585b7f222801065f782c9364..80a4c2eb626ab807b011d3fd62738f53a019c96f 100644
+--- a/src/main/java/net/minecraft/world/level/Level.java
++++ b/src/main/java/net/minecraft/world/level/Level.java
+@@ -16,6 +16,8 @@ import java.util.function.Consumer;
+ import java.util.function.Predicate;
+ import java.util.function.Supplier;
+ import javax.annotation.Nullable;
++
++import me.jellysquid.mods.lithium.common.util.collections.HashedReferenceList;
+ import net.minecraft.CrashReport;
+ import net.minecraft.CrashReportCategory;
+ import net.minecraft.ReportedException;
+@@ -115,9 +117,9 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
+     public static final int TICKS_PER_DAY = 24000;
+     public static final int MAX_ENTITY_SPAWN_Y = 20000000;
+     public static final int MIN_ENTITY_SPAWN_Y = -20000000;
+-    protected final List<TickingBlockEntity> blockEntityTickers = Lists.newArrayList();
++    protected final List<TickingBlockEntity> blockEntityTickers = new HashedReferenceList(Lists.newArrayList());
+     public final int getTotalTileEntityTickers() { return this.blockEntityTickers.size(); } // Paper
+-    private final List<TickingBlockEntity> pendingBlockEntityTickers = Lists.newArrayList();
++    private final List<TickingBlockEntity> pendingBlockEntityTickers = new HashedReferenceList(Lists.newArrayList());
+     private boolean tickingBlockEntities;
+     public final Thread thread;
+     private final boolean isDebug;

@@ -1,0 +1,20 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: skyouo0727 <anwugame@gmail.com>
+Date: Sat, 19 Mar 2022 14:31:01 +0800
+Subject: [PATCH] Fix Overload Crash
+
+This patch replace 50L with MS_PER_TICK to prevent thread parking too long causing thread death.
+
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index f674b8f184ae54acd0a85f6805276491956c6d68..3676ed4ca75eb3b47f92ad29e8b9a94b2aae1b0a 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -1197,7 +1197,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+ 
+                         if (this.server.getWarnOnOverload()) // CraftBukkit
+                             MinecraftServer.LOGGER.warn("Can't keep up! Is the server overloaded? Running {}ms or {} ticks behind", i, j);
+-                        this.nextTickTime += j * 50L;
++                        this.nextTickTime += j * MS_PER_TICK;
+                         this.lastOverloadWarning = this.nextTickTime;
+                     }
+ 

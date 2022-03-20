@@ -1,0 +1,701 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: skyouo0727 <anwugame@gmail.com>
+Date: Sat, 12 Mar 2022 10:01:50 +0800
+Subject: [PATCH] Yatopia Implement Fast random
+
+Original author: Yatopia, under MIT License.
+
+diff --git a/build.gradle.kts b/build.gradle.kts
+index baae35384be56193dae2322d71e1922f01493b36..29e4c81324d6d8f571a4a333a295f4084413cf2d 100644
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -63,6 +63,10 @@ dependencies {
+     // Pufferfish end
+     implementation("com.github.technove:Flare:34637f3f87") // Pufferfish - flare
+ 
++    // Brilliant start
++    implementation("org.apache.commons:commons-rng-core:1.4") // Brilliant - Port Yatopia fast random
++    // Brilliant end
++
+     testImplementation("io.github.classgraph:classgraph:4.8.47") // Paper - mob goal test
+     testImplementation("junit:junit:4.13.2")
+     testImplementation("org.hamcrest:hamcrest-library:1.3")
+diff --git a/src/main/java/com/destroystokyo/paper/loottable/PaperLootableInventoryData.java b/src/main/java/com/destroystokyo/paper/loottable/PaperLootableInventoryData.java
+index 20cfe7b9b7127ddeb97aa91d759fc17b4a548eaf..9983dce957f6909ffd2f005812d121e7508abe83 100644
+--- a/src/main/java/com/destroystokyo/paper/loottable/PaperLootableInventoryData.java
++++ b/src/main/java/com/destroystokyo/paper/loottable/PaperLootableInventoryData.java
+@@ -6,6 +6,8 @@ import org.bukkit.loot.LootTable;
+ import javax.annotation.Nullable;
+ import net.minecraft.nbt.CompoundTag;
+ import net.minecraft.nbt.ListTag;
++import tech.skyouo.brilliant.utils.FastRandom;
++
+ import java.util.HashMap;
+ import java.util.Map;
+ import java.util.Random;
+@@ -13,7 +15,7 @@ import java.util.UUID;
+ 
+ public class PaperLootableInventoryData {
+ 
+-    private static final Random RANDOM = new Random();
++    private static final Random RANDOM = new FastRandom(); // Brilliant - Port Yatopia FastRandom
+ 
+     private long lastFill = -1;
+     private long nextRefill = -1;
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index 9b12fbc18d7be98d1eedd5bae8773715354a7ce4..f674b8f184ae54acd0a85f6805276491956c6d68 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -186,6 +186,7 @@ import org.bukkit.event.server.ServerLoadEvent;
+ import co.aikar.timings.MinecraftTimings; // Paper
+ import org.spigotmc.SlackActivityAccountant; // Spigot
+ import tech.skyouo.brilliant.BrilliantConfig;
++import tech.skyouo.brilliant.utils.FastRandom;
+ 
+ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTask> implements CommandSource, AutoCloseable {
+ 
+@@ -346,7 +347,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+         this.onMetricsRecordingFinished = (path) -> {
+         };
+         this.status = new ServerStatus();
+-        this.random = new Random();
++        this.random = new FastRandom(); // Brilliant - Port Yatopia FastRandom
+         this.port = -1;
+         this.levels = Maps.newLinkedHashMap(); // CraftBukkit - keep order, k+v already use identity methods
+         this.running = true;
+@@ -581,7 +582,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+ 
+             if (worlddimension == null) {
+                 holder = this.registryAccess().registryOrThrow(Registry.DIMENSION_TYPE_REGISTRY).getOrCreateHolder(DimensionType.OVERWORLD_LOCATION);
+-                chunkgenerator = WorldGenSettings.makeDefaultOverworld(this.registryHolder, (new Random()).nextLong());
++                chunkgenerator = WorldGenSettings.makeDefaultOverworld(this.registryHolder, (new FastRandom()).nextLong()); // Brilliant - Port Yatopia FastRandom
+             } else {
+                 holder = worlddimension.typeHolder();
+                 chunkgenerator = worlddimension.generator();
+@@ -718,7 +719,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+             ChunkPos chunkcoordintpair = new ChunkPos(chunkgenerator.climateSampler().findSpawnPosition());
+             // CraftBukkit start
+             if (world.generator != null) {
+-                Random rand = new Random(world.getSeed());
++                Random rand = new FastRandom(world.getSeed()); // Brilliant - Port Yatopia FastRandom
+                 org.bukkit.Location spawn = world.generator.getFixedSpawnLocation(world.getWorld(), rand);
+ 
+                 if (spawn != null) {
+diff --git a/src/main/java/net/minecraft/server/commands/SpreadPlayersCommand.java b/src/main/java/net/minecraft/server/commands/SpreadPlayersCommand.java
+index edc5b0fde13cecf1da371972bd040d7ca38a690b..be80221c87714776a7b018285c1938575a86c2ac 100644
+--- a/src/main/java/net/minecraft/server/commands/SpreadPlayersCommand.java
++++ b/src/main/java/net/minecraft/server/commands/SpreadPlayersCommand.java
+@@ -32,6 +32,7 @@ import net.minecraft.world.level.block.state.BlockState;
+ import net.minecraft.world.level.material.Material;
+ import net.minecraft.world.phys.Vec2;
+ import net.minecraft.world.scores.Team;
++import tech.skyouo.brilliant.utils.FastRandom;
+ 
+ public class SpreadPlayersCommand {
+ 
+@@ -65,7 +66,7 @@ public class SpreadPlayersCommand {
+         if (maxY < j) {
+             throw SpreadPlayersCommand.ERROR_INVALID_MAX_HEIGHT.create(maxY, j);
+         } else {
+-            Random random = new Random();
++            Random random = new FastRandom(); // Brilliant - Port Yatopia FastRandom
+             double d0 = (double) (center.x - maxRange);
+             double d1 = (double) (center.y - maxRange);
+             double d2 = (double) (center.x + maxRange);
+diff --git a/src/main/java/net/minecraft/server/level/ServerPlayer.java b/src/main/java/net/minecraft/server/level/ServerPlayer.java
+index e74c13e7aaa144fcd07036de70e80bebf0be698a..5ea5a4cf5741459568d869f6e814e5b6dd4ca80c 100644
+--- a/src/main/java/net/minecraft/server/level/ServerPlayer.java
++++ b/src/main/java/net/minecraft/server/level/ServerPlayer.java
+@@ -164,6 +164,7 @@ import org.bukkit.event.player.PlayerPortalEvent;
+ import org.bukkit.event.player.PlayerTeleportEvent;
+ import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
+ import org.bukkit.inventory.MainHand;
++import tech.skyouo.brilliant.utils.FastRandom;
+ // CraftBukkit end
+ 
+ public class ServerPlayer extends Player {
+@@ -366,7 +367,7 @@ public class ServerPlayer extends Player {
+             long l = k * k;
+             int i1 = l > 2147483647L ? Integer.MAX_VALUE : (int) l;
+             int j1 = this.getCoprime(i1);
+-            int k1 = (new Random()).nextInt(i1);
++            int k1 = level.random.nextInt(i1); // Brilliant - Port Yatopia FastRandom
+ 
+             for (int l1 = 0; l1 < i1; ++l1) {
+                 int i2 = (k1 + j1 * l1) % i1;
+@@ -403,7 +404,7 @@ public class ServerPlayer extends Player {
+             long l = k * k;
+             int i1 = l > 2147483647L ? Integer.MAX_VALUE : (int) l;
+             int j1 = this.getCoprime(i1);
+-            int k1 = (new Random()).nextInt(i1);
++            int k1 = level.random.nextInt(i1); // Brilliant - Port Yatopia FastRandom
+ 
+             for (int l1 = 0; l1 < i1; ++l1) {
+                 int i2 = (k1 + j1 * l1) % i1;
+diff --git a/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java b/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
+index 4287a18464ff707d7c49acda51bc327b5fe556ac..a250807c1f1c252717e5a0e20dbadf40b29183a8 100644
+--- a/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
++++ b/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
+@@ -42,13 +42,14 @@ import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
+ import org.bukkit.event.player.PlayerPreLoginEvent;
+ // CraftBukkit end
+ import io.netty.buffer.Unpooled; // Paper
++import tech.skyouo.brilliant.utils.FastRandom;
+ 
+ public class ServerLoginPacketListenerImpl implements ServerLoginPacketListener {
+ 
+     private static final AtomicInteger UNIQUE_THREAD_ID = new AtomicInteger(0);
+     static final Logger LOGGER = LogUtils.getLogger();
+     private static final int MAX_TICKS_BEFORE_LOGIN = 600;
+-    private static final Random RANDOM = new Random();
++    private static final Random RANDOM = new FastRandom(); // Brilliant - Port Yatopia FastRandom
+     private final byte[] nonce = new byte[4];
+     final MinecraftServer server;
+     public final Connection connection;
+diff --git a/src/main/java/net/minecraft/server/rcon/thread/QueryThreadGs4.java b/src/main/java/net/minecraft/server/rcon/thread/QueryThreadGs4.java
+index 000918fe0cc3fde07145e027b25f148afcb0de62..53bfe0706bbfba06c38cd9f990ebbcac90d40fb2 100644
+--- a/src/main/java/net/minecraft/server/rcon/thread/QueryThreadGs4.java
++++ b/src/main/java/net/minecraft/server/rcon/thread/QueryThreadGs4.java
+@@ -20,6 +20,7 @@ import net.minecraft.server.ServerInterface;
+ import net.minecraft.server.rcon.NetworkDataOutputStream;
+ import net.minecraft.server.rcon.PktUtils;
+ import org.slf4j.Logger;
++import tech.skyouo.brilliant.utils.FastRandom;
+ 
+ public class QueryThreadGs4 extends GenericThread {
+     private static final Logger LOGGER = LogUtils.getLogger();
+@@ -348,7 +349,7 @@ public class QueryThreadGs4 extends GenericThread {
+             this.identBytes[2] = bs[5];
+             this.identBytes[3] = bs[6];
+             this.ident = new String(this.identBytes, StandardCharsets.UTF_8);
+-            this.challenge = (new Random()).nextInt(16777216);
++            this.challenge = (new FastRandom()).nextInt(16777216);
+             this.challengeBytes = String.format("\t%s%d\u0000", this.ident, this.challenge).getBytes(StandardCharsets.UTF_8);
+         }
+ 
+diff --git a/src/main/java/net/minecraft/world/entity/Entity.java b/src/main/java/net/minecraft/world/entity/Entity.java
+index 59ec3d56e88cf6cee218422481457b944ff25998..b97cfac316bdc8f000a27b4b8edaf7b3350a046e 100644
+--- a/src/main/java/net/minecraft/world/entity/Entity.java
++++ b/src/main/java/net/minecraft/world/entity/Entity.java
+@@ -149,6 +149,7 @@ import org.bukkit.event.entity.EntityPortalEvent;
+ import org.bukkit.event.entity.EntityPoseChangeEvent;
+ import org.bukkit.event.player.PlayerTeleportEvent;
+ import org.bukkit.plugin.PluginManager;
++import tech.skyouo.brilliant.utils.FastRandom;
+ // CraftBukkit end
+ 
+ public abstract class Entity implements Nameable, EntityAccess, CommandSource, io.papermc.paper.util.KeyedObject { // Paper
+@@ -161,7 +162,7 @@ public abstract class Entity implements Nameable, EntityAccess, CommandSource, i
+     }
+ 
+     // Paper start
+-    public static Random SHARED_RANDOM = new Random() {
++    public static Random SHARED_RANDOM = new FastRandom() { // Brilliant - Port Yatopia FastRandom
+         private boolean locked = false;
+         @Override
+         public synchronized void setSeed(long seed) {
+diff --git a/src/main/java/net/minecraft/world/entity/ai/sensing/Sensor.java b/src/main/java/net/minecraft/world/entity/ai/sensing/Sensor.java
+index f3b8e253a5bfc3f68121dbe656ae7e2ac0f0eb1c..55a68d793e0b3b733b763b7fdb6391289b22a382 100644
+--- a/src/main/java/net/minecraft/world/entity/ai/sensing/Sensor.java
++++ b/src/main/java/net/minecraft/world/entity/ai/sensing/Sensor.java
+@@ -6,9 +6,10 @@ import net.minecraft.server.level.ServerLevel;
+ import net.minecraft.world.entity.LivingEntity;
+ import net.minecraft.world.entity.ai.memory.MemoryModuleType;
+ import net.minecraft.world.entity.ai.targeting.TargetingConditions;
++import tech.skyouo.brilliant.utils.FastRandom;
+ 
+ public abstract class Sensor<E extends LivingEntity> {
+-    private static final Random RANDOM = new Random();
++    private static final Random RANDOM = new FastRandom(); // Brilliant - Port Yatopia FastRandom
+     private static final int DEFAULT_SCAN_RATE = 20;
+     protected static final int TARGETING_RANGE = 16;
+     private static final TargetingConditions TARGET_CONDITIONS = TargetingConditions.forNonCombat().range(16.0D);
+diff --git a/src/main/java/net/minecraft/world/entity/monster/piglin/PiglinAi.java b/src/main/java/net/minecraft/world/entity/monster/piglin/PiglinAi.java
+index 57f593e5f797d646ceb70fa61ec2e966cf4dabc1..07e0f0aed086572549ef20e2f92067177556a822 100644
+--- a/src/main/java/net/minecraft/world/entity/monster/piglin/PiglinAi.java
++++ b/src/main/java/net/minecraft/world/entity/monster/piglin/PiglinAi.java
+@@ -75,6 +75,7 @@ import java.util.stream.Collectors;
+ import org.bukkit.craftbukkit.event.CraftEventFactory;
+ import org.bukkit.craftbukkit.inventory.CraftItemStack;
+ import org.bukkit.event.entity.PiglinBarterEvent;
++import tech.skyouo.brilliant.utils.FastRandom;
+ // CraftBukkit end
+ 
+ public class PiglinAi {
+@@ -373,7 +374,7 @@ public class PiglinAi {
+     }
+ 
+     private static boolean wantsToDance(LivingEntity piglin, LivingEntity target) {
+-        return target.getType() != EntityType.HOGLIN ? false : (new Random(piglin.level.getGameTime())).nextFloat() < 0.1F;
++        return target.getType() != EntityType.HOGLIN ? false : (new FastRandom(piglin.level.getGameTime())).nextFloat() < 0.1F; // Brilliant - Port Yatopia FastRandom
+     }
+ 
+     protected static boolean wantsToPickup(Piglin piglin, ItemStack stack) {
+diff --git a/src/main/java/net/minecraft/world/entity/npc/WanderingTraderSpawner.java b/src/main/java/net/minecraft/world/entity/npc/WanderingTraderSpawner.java
+index 4e478c30714a8e4cd95f02e73615d166836d1e4b..4f7305f27c061a21bc1db4c95678ba9a2b3d35c6 100644
+--- a/src/main/java/net/minecraft/world/entity/npc/WanderingTraderSpawner.java
++++ b/src/main/java/net/minecraft/world/entity/npc/WanderingTraderSpawner.java
+@@ -25,6 +25,7 @@ import net.minecraft.world.level.NaturalSpawner;
+ import net.minecraft.world.level.biome.Biomes;
+ import net.minecraft.world.level.levelgen.Heightmap;
+ import net.minecraft.world.level.storage.ServerLevelData;
++import tech.skyouo.brilliant.utils.FastRandom;
+ 
+ public class WanderingTraderSpawner implements CustomSpawner {
+ 
+@@ -35,7 +36,7 @@ public class WanderingTraderSpawner implements CustomSpawner {
+     private static final int SPAWN_CHANCE_INCREASE = 25;
+     private static final int SPAWN_ONE_IN_X_CHANCE = 10;
+     private static final int NUMBER_OF_SPAWN_ATTEMPTS = 10;
+-    private final Random random = new Random();
++    private final Random random = new FastRandom(); // Brilliant - Port Yatopia FastRandom
+     private final ServerLevelData serverLevelData;
+     private int tickDelay;
+     private int spawnDelay;
+diff --git a/src/main/java/net/minecraft/world/entity/projectile/FishingHook.java b/src/main/java/net/minecraft/world/entity/projectile/FishingHook.java
+index cc288174b22f959e8ef11e43f0ea4008bae7bdc5..27deab8bb7115d3b6dabe8c3276769e002a7564d 100644
+--- a/src/main/java/net/minecraft/world/entity/projectile/FishingHook.java
++++ b/src/main/java/net/minecraft/world/entity/projectile/FishingHook.java
+@@ -48,6 +48,7 @@ import org.slf4j.Logger;
+ import org.bukkit.entity.Player;
+ import org.bukkit.entity.FishHook;
+ import org.bukkit.event.player.PlayerFishEvent;
++import tech.skyouo.brilliant.utils.FastRandom;
+ // CraftBukkit end
+ 
+ public class FishingHook extends Projectile {
+@@ -79,7 +80,7 @@ public class FishingHook extends Projectile {
+ 
+     private FishingHook(EntityType<? extends FishingHook> type, Level world, int luckOfTheSeaLevel, int lureLevel) {
+         super(type, world);
+-        this.syncronizedRandom = new Random();
++        this.syncronizedRandom = new FastRandom(); // Brilliant - Port Yatopia FastRandom
+         this.openWater = true;
+         this.currentState = FishingHook.FishHookState.FLYING;
+         this.noCulling = true;
+diff --git a/src/main/java/net/minecraft/world/entity/raid/Raid.java b/src/main/java/net/minecraft/world/entity/raid/Raid.java
+index f50abfd058e3adf1cf8c0f4468a60bc04e8541e7..c815b4b20ca788dda2d1565a90a737b9f81603bd 100644
+--- a/src/main/java/net/minecraft/world/entity/raid/Raid.java
++++ b/src/main/java/net/minecraft/world/entity/raid/Raid.java
+@@ -58,6 +58,7 @@ import net.minecraft.world.level.block.entity.BannerPattern;
+ import net.minecraft.world.level.block.entity.BlockEntityType;
+ import net.minecraft.world.level.levelgen.Heightmap;
+ import net.minecraft.world.phys.Vec3;
++import tech.skyouo.brilliant.utils.FastRandom;
+ 
+ public class Raid {
+ 
+@@ -124,7 +125,7 @@ public class Raid {
+ 
+     public Raid(ServerLevel world, CompoundTag nbt) {
+         this.raidEvent = new ServerBossEvent(Raid.RAID_NAME_COMPONENT, BossEvent.BossBarColor.RED, BossEvent.BossBarOverlay.NOTCHED_10);
+-        this.random = new Random();
++        this.random = new FastRandom();
+         this.waveSpawnPos = Optional.empty();
+         this.level = world;
+         this.id = nbt.getInt("Id");
+diff --git a/src/main/java/net/minecraft/world/inventory/EnchantmentMenu.java b/src/main/java/net/minecraft/world/inventory/EnchantmentMenu.java
+index ea7b670aa6308bbe9919afced02a9067da20f0ce..df26471af7171836d4daaa28a231cc2850bff609 100644
+--- a/src/main/java/net/minecraft/world/inventory/EnchantmentMenu.java
++++ b/src/main/java/net/minecraft/world/inventory/EnchantmentMenu.java
+@@ -36,6 +36,7 @@ import org.bukkit.enchantments.EnchantmentOffer;
+ import org.bukkit.event.enchantment.EnchantItemEvent;
+ import org.bukkit.event.enchantment.PrepareItemEnchantEvent;
+ import org.bukkit.entity.Player;
++import tech.skyouo.brilliant.utils.FastRandom;
+ // CraftBukkit end
+ 
+ public class EnchantmentMenu extends AbstractContainerMenu {
+@@ -72,7 +73,7 @@ public class EnchantmentMenu extends AbstractContainerMenu {
+             }
+             // CraftBukkit end
+         };
+-        this.random = new Random();
++        this.random = new FastRandom(); // Brilliant - Port Yatopia FastRandom
+         this.enchantmentSeed = DataSlot.standalone();
+         this.costs = new int[3];
+         this.enchantClue = new int[]{-1, -1, -1};
+diff --git a/src/main/java/net/minecraft/world/level/BaseSpawner.java b/src/main/java/net/minecraft/world/level/BaseSpawner.java
+index 4bfebbb2e87464cd47a38a5da6275b2c662fa052..7484ec205fd6cc59753b37021d4c0300c68ad6cc 100644
+--- a/src/main/java/net/minecraft/world/level/BaseSpawner.java
++++ b/src/main/java/net/minecraft/world/level/BaseSpawner.java
+@@ -23,6 +23,7 @@ import net.minecraft.world.entity.SpawnGroupData;
+ import net.minecraft.world.entity.SpawnPlacements;
+ import net.minecraft.world.phys.AABB;
+ import org.slf4j.Logger;
++import tech.skyouo.brilliant.utils.FastRandom;
+ 
+ public abstract class BaseSpawner {
+ 
+@@ -41,7 +42,7 @@ public abstract class BaseSpawner {
+     public int maxNearbyEntities = 6;
+     public int requiredPlayerRange = 16;
+     public int spawnRange = 4;
+-    private final Random random = new Random();
++    private final Random random = new FastRandom(); // Brilliant - Port Yatopia FastRandom
+     private int tickDelay = 0; // Paper
+ 
+     public BaseSpawner() {}
+diff --git a/src/main/java/net/minecraft/world/level/Explosion.java b/src/main/java/net/minecraft/world/level/Explosion.java
+index 29f6c10e2c2626a9726d295acf12efea2b463cd3..1262d923d7abc219d912103ab136a00c9d165d8f 100644
+--- a/src/main/java/net/minecraft/world/level/Explosion.java
++++ b/src/main/java/net/minecraft/world/level/Explosion.java
+@@ -49,6 +49,7 @@ import org.bukkit.craftbukkit.event.CraftEventFactory;
+ import org.bukkit.event.entity.EntityExplodeEvent;
+ import org.bukkit.Location;
+ import org.bukkit.event.block.BlockExplodeEvent;
++import tech.skyouo.brilliant.utils.FastRandom;
+ // CraftBukkit end
+ 
+ public class Explosion {
+@@ -89,7 +90,7 @@ public class Explosion {
+     }
+ 
+     public Explosion(Level world, @Nullable Entity entity, @Nullable DamageSource damageSource, @Nullable ExplosionDamageCalculator behavior, double x, double y, double z, float power, boolean createFire, Explosion.BlockInteraction destructionType) {
+-        this.random = new Random();
++        this.random = new FastRandom(); // Brilliant - Port Yatopia FastRandom
+         this.toBlow = Lists.newArrayList();
+         this.hitPlayers = Maps.newHashMap();
+         this.level = world;
+diff --git a/src/main/java/net/minecraft/world/level/Level.java b/src/main/java/net/minecraft/world/level/Level.java
+index 80a4c2eb626ab807b011d3fd62738f53a019c96f..84dd31f7497b320d6149a77850e1e19b40a658af 100644
+--- a/src/main/java/net/minecraft/world/level/Level.java
++++ b/src/main/java/net/minecraft/world/level/Level.java
+@@ -101,6 +101,7 @@ import org.bukkit.craftbukkit.util.CraftNamespacedKey;
+ import org.bukkit.entity.SpawnCategory;
+ import org.bukkit.event.block.BlockPhysicsEvent;
+ import org.bukkit.event.world.GenericGameEvent;
++import tech.skyouo.brilliant.utils.FastRandom;
+ // CraftBukkit end
+ 
+ public abstract class Level implements LevelAccessor, AutoCloseable {
+@@ -124,13 +125,13 @@ public abstract class Level implements LevelAccessor, AutoCloseable {
+     public final Thread thread;
+     private final boolean isDebug;
+     private int skyDarken;
+-    protected int randValue = (new Random()).nextInt();
++    protected int randValue = (new FastRandom()).nextInt(); // Brilliant - Port Yatopia FastRandom
+     protected final int addend = 1013904223;
+     protected float oRainLevel;
+     public float rainLevel;
+     protected float oThunderLevel;
+     public float thunderLevel;
+-    public final Random random = new Random();
++    public final Random random = new FastRandom(); // Brilliant - Port Yatopia FastRandom
+     final DimensionType dimensionType;
+     private final Holder<DimensionType> dimensionTypeRegistration;
+     public final WritableLevelData levelData;
+diff --git a/src/main/java/net/minecraft/world/level/block/entity/DispenserBlockEntity.java b/src/main/java/net/minecraft/world/level/block/entity/DispenserBlockEntity.java
+index f74c5bb8e1ba42c77c59d481b871fd992483b128..b7975663d5ace3b7fee256b0a021761fb67302e7 100644
+--- a/src/main/java/net/minecraft/world/level/block/entity/DispenserBlockEntity.java
++++ b/src/main/java/net/minecraft/world/level/block/entity/DispenserBlockEntity.java
+@@ -17,11 +17,12 @@ import net.minecraft.world.level.block.state.BlockState;
+ import java.util.List;
+ import org.bukkit.craftbukkit.entity.CraftHumanEntity;
+ import org.bukkit.entity.HumanEntity;
++import tech.skyouo.brilliant.utils.FastRandom;
+ // CraftBukkit end
+ 
+ public class DispenserBlockEntity extends RandomizableContainerBlockEntity {
+ 
+-    private static final Random RANDOM = new Random();
++    private static final Random RANDOM = new FastRandom();
+     public static final int CONTAINER_SIZE = 9;
+     private NonNullList<ItemStack> items;
+ 
+diff --git a/src/main/java/net/minecraft/world/level/block/entity/TheEndGatewayBlockEntity.java b/src/main/java/net/minecraft/world/level/block/entity/TheEndGatewayBlockEntity.java
+index 4e435a16a16c703a2978f4dc82606b8710742670..59b46b8ae3f4ed657193a7dad1e1b26926d8ad54 100644
+--- a/src/main/java/net/minecraft/world/level/block/entity/TheEndGatewayBlockEntity.java
++++ b/src/main/java/net/minecraft/world/level/block/entity/TheEndGatewayBlockEntity.java
+@@ -37,6 +37,7 @@ import org.bukkit.Bukkit;
+ import org.bukkit.Location;
+ import org.bukkit.craftbukkit.entity.CraftPlayer;
+ import org.bukkit.event.player.PlayerTeleportEvent;
++import tech.skyouo.brilliant.utils.FastRandom;
+ // CraftBukkit end
+ 
+ public class TheEndGatewayBlockEntity extends TheEndPortalBlockEntity {
+@@ -266,7 +267,7 @@ public class TheEndGatewayBlockEntity extends TheEndPortalBlockEntity {
+         if (blockposition1 == null) {
+             blockposition1 = new BlockPos(vec3d.x + 0.5D, 75.0D, vec3d.z + 0.5D);
+             TheEndGatewayBlockEntity.LOGGER.debug("Failed to find a suitable block to teleport to, spawning an island on {}", blockposition1);
+-            ((ConfiguredFeature) EndFeatures.END_ISLAND.value()).place(world, world.getChunkSource().getGenerator(), new Random(blockposition1.asLong()), blockposition1);
++            ((ConfiguredFeature) EndFeatures.END_ISLAND.value()).place(world, world.getChunkSource().getGenerator(), new FastRandom(blockposition1.asLong()), blockposition1); // Brilliant - Port Yatopia FastRandom
+         } else {
+             TheEndGatewayBlockEntity.LOGGER.debug("Found suitable block to teleport to: {}", blockposition1);
+         }
+@@ -354,7 +355,7 @@ public class TheEndGatewayBlockEntity extends TheEndPortalBlockEntity {
+     }
+ 
+     private static void spawnGatewayPortal(ServerLevel world, BlockPos pos, EndGatewayConfiguration config) {
+-        Feature.END_GATEWAY.place(config, world, world.getChunkSource().getGenerator(), new Random(), pos);
++        Feature.END_GATEWAY.place(config, world, world.getChunkSource().getGenerator(), new FastRandom(), pos); // Brilliant - Port Yatopia FastRandom
+     }
+ 
+     @Override
+diff --git a/src/main/java/net/minecraft/world/level/chunk/ChunkGenerator.java b/src/main/java/net/minecraft/world/level/chunk/ChunkGenerator.java
+index ab64f85de0051fdd4ff2eaa376eeabce2670b466..7c44a4c1ba0eef09ce2ee513bef78f6543f2d74f 100644
+--- a/src/main/java/net/minecraft/world/level/chunk/ChunkGenerator.java
++++ b/src/main/java/net/minecraft/world/level/chunk/ChunkGenerator.java
+@@ -86,6 +86,7 @@ import net.minecraft.world.level.levelgen.structure.placement.StructurePlacement
+ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureManager;
+ import org.apache.commons.lang3.mutable.MutableBoolean;
+ import org.slf4j.Logger;
++import tech.skyouo.brilliant.utils.FastRandom;
+ 
+ public abstract class ChunkGenerator implements BiomeManager.NoiseBiomeSource {
+ 
+@@ -221,7 +222,7 @@ public abstract class ChunkGenerator implements BiomeManager.NoiseBiomeSource {
+             int i = placement.distance();
+             int j = placement.count();
+             int k = placement.spread();
+-            Random random = new Random();
++            Random random = new FastRandom(); // Brilliant - Port Yatopia FastRandom
+ 
+             // Paper start
+             if (strongholdSet.is(net.minecraft.world.level.levelgen.structure.BuiltinStructureSets.STRONGHOLDS) && this.conf.strongholdSeed != null) {
+diff --git a/src/main/java/net/minecraft/world/level/dimension/end/EndDragonFight.java b/src/main/java/net/minecraft/world/level/dimension/end/EndDragonFight.java
+index ed6ff35a2112cea4faa6e1458d1effc40fce5dd2..ffecbb8226acb16685d292c41da79e04fff93d70 100644
+--- a/src/main/java/net/minecraft/world/level/dimension/end/EndDragonFight.java
++++ b/src/main/java/net/minecraft/world/level/dimension/end/EndDragonFight.java
+@@ -54,6 +54,7 @@ import net.minecraft.world.level.levelgen.feature.SpikeFeature;
+ import net.minecraft.world.level.levelgen.feature.configurations.FeatureConfiguration;
+ import net.minecraft.world.phys.AABB;
+ import org.slf4j.Logger;
++import tech.skyouo.brilliant.utils.FastRandom;
+ 
+ public class EndDragonFight {
+     private static final Logger LOGGER = LogUtils.getLogger();
+@@ -402,7 +403,7 @@ public class EndDragonFight {
+ 
+     private void spawnNewGateway(BlockPos pos) {
+         this.level.levelEvent(3000, pos, 0);
+-        EndFeatures.END_GATEWAY_DELAYED.value().place(this.level, this.level.getChunkSource().getGenerator(), new Random(), pos);
++        EndFeatures.END_GATEWAY_DELAYED.value().place(this.level, this.level.getChunkSource().getGenerator(), new FastRandom(), pos); // Brilliant - Port Yatopia FastRandom
+     }
+ 
+     public void spawnExitPortal(boolean previouslyKilled) {
+@@ -417,7 +418,7 @@ public class EndDragonFight {
+             this.portalLocation = this.portalLocation.atY(this.level.getMinBuildHeight() + 1);
+         }
+         // Paper end
+-        endPodiumFeature.place(FeatureConfiguration.NONE, this.level, this.level.getChunkSource().getGenerator(), new Random(), this.portalLocation);
++        endPodiumFeature.place(FeatureConfiguration.NONE, this.level, this.level.getChunkSource().getGenerator(), new FastRandom(), this.portalLocation); // Brilliant - Port Yatopia FastRandom
+     }
+ 
+     private EnderDragon createNewDragon() {
+diff --git a/src/main/java/net/minecraft/world/level/levelgen/feature/SpikeFeature.java b/src/main/java/net/minecraft/world/level/levelgen/feature/SpikeFeature.java
+index c7e9bed9cfb22b4ada906540434f9c0eff1d53ab..9fae0c896e9cfb298388a30996d619e8a6a6ea1a 100644
+--- a/src/main/java/net/minecraft/world/level/levelgen/feature/SpikeFeature.java
++++ b/src/main/java/net/minecraft/world/level/levelgen/feature/SpikeFeature.java
+@@ -25,6 +25,7 @@ import net.minecraft.world.level.block.state.BlockState;
+ import net.minecraft.world.level.dimension.DimensionType;
+ import net.minecraft.world.level.levelgen.feature.configurations.SpikeConfiguration;
+ import net.minecraft.world.phys.AABB;
++import tech.skyouo.brilliant.utils.FastRandom;
+ 
+ public class SpikeFeature extends Feature<SpikeConfiguration> {
+     public static final int NUMBER_OF_SPIKES = 10;
+@@ -36,7 +37,7 @@ public class SpikeFeature extends Feature<SpikeConfiguration> {
+     }
+ 
+     public static List<SpikeFeature.EndSpike> getSpikesForLevel(WorldGenLevel world) {
+-        Random random = new Random(world.getSeed());
++        Random random = new FastRandom(world.getSeed()); // Brilliant - Port Yatopia FastRandom
+         long l = random.nextLong() & 65535L;
+         return SPIKE_CACHE.getUnchecked(l);
+     }
+@@ -167,7 +168,7 @@ public class SpikeFeature extends Feature<SpikeConfiguration> {
+         @Override
+         public List<SpikeFeature.EndSpike> load(Long long_) {
+             List<Integer> list = IntStream.range(0, 10).boxed().collect(Collectors.toList());
+-            Collections.shuffle(list, new Random(long_));
++            Collections.shuffle(list, new FastRandom(long_)); // Brilliant - Port Yatopia FastRandom
+             List<SpikeFeature.EndSpike> list2 = Lists.newArrayList();
+ 
+             for(int i = 0; i < 10; ++i) {
+diff --git a/src/main/java/net/minecraft/world/level/storage/loot/LootContext.java b/src/main/java/net/minecraft/world/level/storage/loot/LootContext.java
+index d33af84300db18ea2b71dba2c9ed43390a293500..19b5fed240b6816596e77b2ee8e7c8e1107a65cb 100644
+--- a/src/main/java/net/minecraft/world/level/storage/loot/LootContext.java
++++ b/src/main/java/net/minecraft/world/level/storage/loot/LootContext.java
+@@ -23,6 +23,7 @@ import net.minecraft.world.level.storage.loot.parameters.LootContextParam;
+ import net.minecraft.world.level.storage.loot.parameters.LootContextParamSet;
+ import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
+ import net.minecraft.world.level.storage.loot.predicates.LootItemCondition;
++import tech.skyouo.brilliant.utils.FastRandom;
+ 
+ public class LootContext {
+     private final Random random;
+@@ -127,7 +128,7 @@ public class LootContext {
+ 
+         public LootContext.Builder withOptionalRandomSeed(long seed) {
+             if (seed != 0L) {
+-                this.random = new Random(seed);
++                this.random = new FastRandom(seed); // Brilliant - Port Yatopia FastRandom
+             }
+ 
+             return this;
+@@ -137,7 +138,7 @@ public class LootContext {
+             if (seed == 0L) {
+                 this.random = random;
+             } else {
+-                this.random = new Random(seed);
++                this.random = new FastRandom(seed); // Brilliant - Port Yatopia FastRandom
+             }
+ 
+             return this;
+@@ -201,7 +202,7 @@ public class LootContext {
+                 } else {
+                     Random random = this.random;
+                     if (random == null) {
+-                        random = new Random();
++                        random = new FastRandom(); // Brilliant - Port Yatopia FastRandom
+                     }
+ 
+                     MinecraftServer minecraftServer = this.level.getServer();
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+index cf51657206313195ef4a92d835ba3ed3c044c9ab..a9dd0fb446df3edfe5c9acd622d5c3f311cd2875 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+@@ -243,6 +243,7 @@ import org.yaml.snakeyaml.constructor.SafeConstructor;
+ import org.yaml.snakeyaml.error.MarkedYAMLException;
+ 
+ import net.md_5.bungee.api.chat.BaseComponent; // Spigot
++import tech.skyouo.brilliant.utils.FastRandom;
+ 
+ import javax.annotation.Nullable; // Paper
+ import javax.annotation.Nonnull; // Paper
+@@ -1211,7 +1212,7 @@ public final class CraftServer implements Server {
+ 
+         if (worlddimension == null) {
+             holder = console.registryHolder.registryOrThrow(Registry.DIMENSION_TYPE_REGISTRY).getOrCreateHolder(DimensionType.OVERWORLD_LOCATION);
+-            chunkgenerator = WorldGenSettings.makeDefaultOverworld(console.registryHolder, (new Random()).nextLong());
++            chunkgenerator = WorldGenSettings.makeDefaultOverworld(console.registryHolder, (new FastRandom()).nextLong()); // Brilliant - Port Yatopia FastRandom
+         } else {
+             holder = worlddimension.typeHolder();
+             chunkgenerator = worlddimension.generator();
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
+index 028663b86970b8a1ae3e5275429516ee00ef0a04..543cf14dab21b7f9baa7ada4c4293b2c87161043 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftWorld.java
+@@ -128,6 +128,7 @@ import org.bukkit.util.BoundingBox;
+ import org.bukkit.util.Consumer;
+ import org.bukkit.util.RayTraceResult;
+ import org.bukkit.util.Vector;
++import tech.skyouo.brilliant.utils.FastRandom;
+ 
+ public class CraftWorld extends CraftRegionAccessor implements World {
+     public static final int CUSTOM_DIMENSION_OFFSET = 10;
+@@ -239,7 +240,7 @@ public class CraftWorld extends CraftRegionAccessor implements World {
+     }
+     // Paper end
+ 
+-    private static final Random rand = new Random();
++    private static final Random rand = new FastRandom();
+ 
+     public CraftWorld(ServerLevel world, ChunkGenerator gen, BiomeProvider biomeProvider, Environment env) {
+         this.world = world;
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftFirework.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftFirework.java
+index be86114eac3975b82ca74d4d6ed3f0402a642e8a..1b629ca567eb56101bb14dd5d7611df7243e4323 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftFirework.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftFirework.java
+@@ -10,10 +10,11 @@ import org.bukkit.craftbukkit.inventory.CraftItemStack;
+ import org.bukkit.entity.EntityType;
+ import org.bukkit.entity.Firework;
+ import org.bukkit.inventory.meta.FireworkMeta;
++import tech.skyouo.brilliant.utils.FastRandom;
+ 
+ public class CraftFirework extends CraftProjectile implements Firework {
+ 
+-    private final Random random = new Random();
++    private final Random random = new FastRandom();
+     private final CraftItemStack item;
+ 
+     public CraftFirework(CraftServer server, FireworkRocketEntity entity) {
+diff --git a/src/main/java/org/bukkit/craftbukkit/generator/CustomChunkGenerator.java b/src/main/java/org/bukkit/craftbukkit/generator/CustomChunkGenerator.java
+index 8acf48ecc9217556bd5aaf47e33df284254a8221..b0a7b35b90e7a6f85b2853f846c87c1d0261e322 100644
+--- a/src/main/java/org/bukkit/craftbukkit/generator/CustomChunkGenerator.java
++++ b/src/main/java/org/bukkit/craftbukkit/generator/CustomChunkGenerator.java
+@@ -39,13 +39,14 @@ import org.bukkit.craftbukkit.block.CraftBlock;
+ import org.bukkit.generator.ChunkGenerator;
+ import org.bukkit.generator.ChunkGenerator.BiomeGrid;
+ import org.bukkit.generator.ChunkGenerator.ChunkData;
++import tech.skyouo.brilliant.utils.FastRandom;
+ 
+ public class CustomChunkGenerator extends InternalChunkGenerator {
+ 
+     public final net.minecraft.world.level.chunk.ChunkGenerator delegate;
+     private final ChunkGenerator generator;
+     private final ServerLevel world;
+-    private final Random random = new Random();
++    private final Random random = new FastRandom(); // Brilliant - Port Yatopia FastRandom
+     private boolean newApi;
+     private boolean implementBaseHeight = true;
+ 
+diff --git a/src/main/java/tech/skyouo/brilliant/utils/FastRandom.java b/src/main/java/tech/skyouo/brilliant/utils/FastRandom.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..350331f70e9c6e287567705bc45965618fb08dae
+--- /dev/null
++++ b/src/main/java/tech/skyouo/brilliant/utils/FastRandom.java
+@@ -0,0 +1,61 @@
++package tech.skyouo.brilliant.utils;
++
++import java.util.Random;
++import java.util.SplittableRandom;
++import org.apache.commons.rng.core.source64.XoRoShiRo128PlusPlus;
++
++public class FastRandom extends Random {
++    private XoRoShiRo128PlusPlus random;
++
++    public FastRandom() {
++        super();
++        SplittableRandom randomseed = new SplittableRandom();
++        this.random = new XoRoShiRo128PlusPlus(randomseed.nextLong(), randomseed.nextLong());
++    }
++
++    public FastRandom(long seed) {
++        super(seed);
++        SplittableRandom randomseed = new SplittableRandom(seed);
++        this.random = new XoRoShiRo128PlusPlus(randomseed.nextLong(), randomseed.nextLong());
++    }
++
++    @Override
++    public boolean nextBoolean() {
++        return random.nextBoolean();
++    }
++
++    @Override
++    public int nextInt() {
++        return random.nextInt();
++    }
++
++    @Override
++    public float nextFloat() {
++        return (float) random.nextDouble();
++    }
++
++    @Override
++    public double nextDouble() {
++        return random.nextDouble();
++    }
++    @Override
++    public synchronized void setSeed(long seed) {
++        SplittableRandom randomseed = new SplittableRandom(seed);
++        this.random = new XoRoShiRo128PlusPlus(randomseed.nextLong(), randomseed.nextLong());
++    }
++
++    @Override
++    public void nextBytes(byte[] bytes) {
++        random.nextBytes(bytes);
++    }
++
++    @Override
++    public int nextInt(int bound) {
++        return random.nextInt(bound);
++    }
++
++    @Override
++    public long nextLong() {
++        return random.nextLong();
++    }
++}

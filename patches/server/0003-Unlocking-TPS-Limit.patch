@@ -1,6 +1,6 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: skyouo0727 <anwugame@gmail.com>
-Date: Tue, 8 Mar 2022 10:13:29 +0800
+Date: Tue, 8 Mar 2022 19:42:23 +0800
 Subject: [PATCH] Unlocking TPS Limit
 
 
@@ -29,20 +29,20 @@ index fa56cd09102a89692b42f1d14257990508c5c720..514eaf5bced00bc9f6b79879dfdad76a
      }
  }
 diff --git a/src/main/java/net/minecraft/server/Main.java b/src/main/java/net/minecraft/server/Main.java
-index 1e0d261439255091a6f61485c0747231fbd5b1db..7514f4ecd63b8d64e7d42e30be34bf4f9123e2d1 100644
+index 1e0d261439255091a6f61485c0747231fbd5b1db..8f51e607b1503c60845fb2f26fdd6f804c745a15 100644
 --- a/src/main/java/net/minecraft/server/Main.java
 +++ b/src/main/java/net/minecraft/server/Main.java
-@@ -198,6 +198,8 @@ public class Main {
-             AtomicReference<DynamicOps<Tag>> ops = new AtomicReference<>();
-             // CraftBukkit end
+@@ -159,6 +159,8 @@ public class Main {
+             LevelStorageSource.LevelStorageAccess convertable_conversionsession = convertable.createAccess(s, LevelStem.OVERWORLD);
+             LevelSummary worldinfo = convertable_conversionsession.getSummary();
  
 +            tech.skyouo.brilliant.BrilliantConfig.init(); // Brilliant - Load before MinecraftServer was created
 +
-             WorldStem worldstem;
- 
-             try {
+             if (worldinfo != null) {
+                 if (worldinfo.requiresManualConversion()) {
+                     Main.LOGGER.info("This world must be opened in an older version (like 1.6.4) to be safely converted");
 diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
-index e937ea026157e51fd46b14a5db8627439bc4e9f3..902e8853101367c2bb41d49ee0b45ce6cd7371a3 100644
+index e937ea026157e51fd46b14a5db8627439bc4e9f3..9b12fbc18d7be98d1eedd5bae8773715354a7ce4 100644
 --- a/src/main/java/net/minecraft/server/MinecraftServer.java
 +++ b/src/main/java/net/minecraft/server/MinecraftServer.java
 @@ -185,6 +185,7 @@ import org.bukkit.event.server.ServerLoadEvent;
@@ -53,16 +53,15 @@ index e937ea026157e51fd46b14a5db8627439bc4e9f3..902e8853101367c2bb41d49ee0b45ce6
  
  public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTask> implements CommandSource, AutoCloseable {
  
-@@ -193,7 +194,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -193,7 +194,6 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
      public static final String VANILLA_BRAND = "vanilla";
      private static final float AVERAGE_TICK_TIME_SMOOTHING = 0.8F;
      private static final int TICK_STATS_SPAN = 100;
 -    public static final int MS_PER_TICK = 50;
-+    public static final double MS_PER_TICK = (double) 1000 / MinecraftServer.TPS; // Brilliant
      private static final int OVERLOADED_THRESHOLD = 2000;
      private static final int OVERLOADED_WARNING_INTERVAL = 15000;
      public static final String LEVEL_STORAGE_PROTOCOL = "level";
-@@ -300,9 +301,9 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -300,9 +300,10 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
      public boolean forceTicks; // Paper
      // CraftBukkit end
      // Spigot start
@@ -71,15 +70,18 @@ index e937ea026157e51fd46b14a5db8627439bc4e9f3..902e8853101367c2bb41d49ee0b45ce6
 -    private static final int SAMPLE_INTERVAL = 20; // Paper
 +    public static final int TPS = BrilliantConfig.tpsLimit; // Brilliant
 +    public static final int TICK_TIME = 1000000000 / MinecraftServer.TPS; // Brilliant
++    public static final double MS_PER_TICK = (double) 1000 / BrilliantConfig.tpsLimit; // Brilliant
 +    private static final int SAMPLE_INTERVAL = BrilliantConfig.tpsLimit; // Paper // Brilliant
      public final double[] recentTps = new double[ 3 ];
      public final SlackActivityAccountant slackActivityAccountant = new SlackActivityAccountant();
      // Spigot end
-@@ -1191,7 +1192,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1190,8 +1191,8 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+                 while (this.running) {
                      long i = ((curTime = System.nanoTime()) / (1000L * 1000L)) - this.nextTickTime; // Paper
  
-                     if (i > 5000L && this.nextTickTime - this.lastOverloadWarning >= 30000L) { // CraftBukkit
+-                    if (i > 5000L && this.nextTickTime - this.lastOverloadWarning >= 30000L) { // CraftBukkit
 -                        long j = i / 50L;
++                    if (i > (100L * MS_PER_TICK) && this.nextTickTime - this.lastOverloadWarning >= (600L * MS_PER_TICK)) { // CraftBukkit
 +                        double j = i / MS_PER_TICK;
  
                          if (this.server.getWarnOnOverload()) // CraftBukkit
@@ -105,7 +107,7 @@ index e937ea026157e51fd46b14a5db8627439bc4e9f3..902e8853101367c2bb41d49ee0b45ce6
          ++this.tickCount;
          this.tickChildren(shouldKeepTicking);
 -        if (i - this.lastServerStatus >= 5000000000L) {
-+        if (i - this.lastServerStatus >= MS_PER_TICK * 100000000L) {
++        if (i - this.lastServerStatus >= (MS_PER_TICK * 100000000L)) {
              this.lastServerStatus = i;
              this.status.setPlayers(new ServerStatus.Players(this.getMaxPlayers(), this.getPlayerCount()));
              if (!this.hidesOnlinePlayers()) {
@@ -123,7 +125,7 @@ index 27e90ca03275a42271bbe97ee1a63a355b098ede..ad5c0cac7c5cec6b2b44b64577021d9f
          this.setFlightAllowed(dedicatedserverproperties.allowFlight);
          this.setResourcePack(dedicatedserverproperties.resourcePack, this.getPackHash());
 diff --git a/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java b/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java
-index bc67e1a997d59408b00c333184d9f8dcc6cb262a..878be4cfe6b3bffcf374cb78a7234b67113a45e8 100644
+index bc67e1a997d59408b00c333184d9f8dcc6cb262a..bf43c4f5544e12e5b95182cd3a813b1fe21dec40 100644
 --- a/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java
 +++ b/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java
 @@ -316,7 +316,7 @@ public class ServerGamePacketListenerImpl implements ServerPlayerConnection, Ser
@@ -140,7 +142,7 @@ index bc67e1a997d59408b00c333184d9f8dcc6cb262a..878be4cfe6b3bffcf374cb78a7234b67
              this.vehicleLastGoodZ = this.lastVehicle.getZ();
              if (this.clientVehicleIsFloating && this.player.getRootVehicle().getControllingPassenger() == this.player) {
 -                if (++this.aboveGroundVehicleTickCount > 80) {
-+                if (++this.aboveGroundVehicleTickCount > MinecraftServer.TPS * 4) { // Brilliant
++                if (++this.aboveGroundVehicleTickCount > MinecraftServer.TPS * 4) {
                      ServerGamePacketListenerImpl.LOGGER.warn("{} was kicked for floating a vehicle too long!", this.player.getName().getString());
                      this.disconnect(com.destroystokyo.paper.PaperConfig.flyingKickVehicleMessage, org.bukkit.event.player.PlayerKickEvent.Cause.FLYING_VEHICLE); // Paper - use configurable kick message & kick event cause
                      return;
@@ -171,7 +173,7 @@ index 9bede6a26c08ede063c7a38f1149c811df14b258..3226eb1951b1a809f6744bb9d6b2a6c3
      }
  }
 diff --git a/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java b/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
-index 86da80f21b934162e96cef89e73dcb2c1a96e41b..5150512e8d7e862050c2f850439b170292d2c1f1 100644
+index 5aef0270a266c0609283299c162c7d9ef9e47977..caa56e7fe741631523d09c0f50f7d081c1efd639 100644
 --- a/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
 +++ b/src/main/java/tech/skyouo/brilliant/BrilliantConfig.java
 @@ -146,4 +146,9 @@ public class BrilliantConfig {
@@ -181,6 +183,6 @@ index 86da80f21b934162e96cef89e73dcb2c1a96e41b..5150512e8d7e862050c2f850439b1702
 +
 +    public static int tpsLimit = 20;
 +    private static void setTpsLimit() {
-+        tpsLimit = getInt("tps.limit", 20);
++        tpsLimit = getInt("tps.limit", tpsLimit);
 +    }
  }

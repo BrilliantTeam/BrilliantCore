@@ -3,7 +3,7 @@ From: skyouo0727 <anwugame@gmail.com>
 Date: Tue, 8 Mar 2022 12:01:57 +0800
 Subject: [PATCH] Yatopia Optimize TileEntity load/unload
 
-Original author is Yatopia, under MIT License.
+Original author: Yatopia, under MIT License.
 
 diff --git a/src/main/java/net/minecraft/world/level/Level.java b/src/main/java/net/minecraft/world/level/Level.java
 index 0268b2a954bb1558585b7f222801065f782c9364..80a4c2eb626ab807b011d3fd62738f53a019c96f 100644

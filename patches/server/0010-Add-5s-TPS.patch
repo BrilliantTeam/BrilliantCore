@@ -1,0 +1,112 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: skyouo0727 <anwugame@gmail.com>
+Date: Sun, 20 Mar 2022 14:24:02 +0800
+Subject: [PATCH] Add 5s TPS
+
+This patch add 5s tps average and fix TickTimes.
+
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index 3676ed4ca75eb3b47f92ad29e8b9a94b2aae1b0a..9ffa8255c6e2003d405893971cc1db481cc15759 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -245,11 +245,6 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+     private String motd;
+     private int playerIdleTimeout;
+     public final long[] tickTimes;
+-    // Paper start
+-    public final TickTimes tickTimes5s = new TickTimes(100);
+-    public final TickTimes tickTimes10s = new TickTimes(200);
+-    public final TickTimes tickTimes60s = new TickTimes(1200);
+-    // Paper end
+     @Nullable
+     private KeyPair keyPair;
+     @Nullable
+@@ -306,6 +301,12 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+     public static final double MS_PER_TICK = (double) 1000 / BrilliantConfig.tpsLimit; // Brilliant
+     private static final int SAMPLE_INTERVAL = BrilliantConfig.tpsLimit; // Paper // Brilliant
+     public final double[] recentTps = new double[ 3 ];
++    // Paper start // Brilliant - moved down
++    public final TickTimes tickTimes1s = new TickTimes(MinecraftServer.TPS);
++    public final TickTimes tickTimes5s = new TickTimes(5 * MinecraftServer.TPS);
++    public final TickTimes tickTimes10s = new TickTimes(10 * MinecraftServer.TPS);
++    public final TickTimes tickTimes60s = new TickTimes(60 * MinecraftServer.TPS);
++    // Paper end
+     public final SlackActivityAccountant slackActivityAccountant = new SlackActivityAccountant();
+     // Spigot end
+     public static long currentTickLong = 0L; // Paper
+@@ -1116,6 +1117,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+     private static final long MAX_CATCHUP_BUFFER = TICK_TIME * TPS * 60L;
+     private long lastTick = 0;
+     private long catchupTime = 0;
++    public final RollingAverage tps5s = new RollingAverage(5);
+     public final RollingAverage tps1 = new RollingAverage(60);
+     public final RollingAverage tps5 = new RollingAverage(60 * 5);
+     public final RollingAverage tps15 = new RollingAverage(60 * 15);
+@@ -1206,6 +1208,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+                     {
+                         final long diff = curTime - tickSection;
+                         java.math.BigDecimal currentTps = TPS_BASE.divide(new java.math.BigDecimal(diff), 30, java.math.RoundingMode.HALF_UP);
++                        tps5s.add(currentTps, diff); // Brilliant
+                         tps1.add(currentTps, diff);
+                         tps5.add(currentTps, diff);
+                         tps15.add(currentTps, diff);
+@@ -1522,6 +1525,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+         long i1 = Util.getNanos();
+ 
+         // Paper start
++        tickTimes1s.add(this.tickCount, l);
+         tickTimes5s.add(this.tickCount, l);
+         tickTimes10s.add(this.tickCount, l);
+         tickTimes60s.add(this.tickCount, l);
+diff --git a/src/main/java/tech/skyouo/brilliant/BrilliantCommandHandler.java b/src/main/java/tech/skyouo/brilliant/BrilliantCommandHandler.java
+index 6b499d8cf28ba1150729370a41ea99a95726df14..35a120135acf11219f6bc78577db176ba5cfdf46 100644
+--- a/src/main/java/tech/skyouo/brilliant/BrilliantCommandHandler.java
++++ b/src/main/java/tech/skyouo/brilliant/BrilliantCommandHandler.java
+@@ -6,6 +6,7 @@ import org.bukkit.Bukkit;
+ import org.bukkit.Location;
+ import org.bukkit.command.Command;
+ import org.bukkit.command.CommandSender;
++import org.checkerframework.checker.units.qual.C;
+ 
+ import java.util.Collections;
+ import java.util.List;
+@@ -17,14 +18,14 @@ public class BrilliantCommandHandler extends Command {
+     public BrilliantCommandHandler() {
+         super("brilliant");
+         this.description = "Brilliant related commands";
+-        this.usageMessage = "/brilliant [reload | version]";
++        this.usageMessage = "/brilliant [reload | version | tps]";
+         this.setPermission("bukkit.command.brilliant");
+     }
+ 
+     @Override
+     public List<String> tabComplete(CommandSender sender, String alias, String[] args, Location location) throws IllegalArgumentException {
+         if (args.length == 1) {
+-            return Stream.of("reload", "version")
++            return Stream.of("reload", "version", "tps")
+                     .filter(arg -> arg.startsWith(args[0].toLowerCase()))
+                     .collect(Collectors.toList());
+         }
+@@ -49,8 +50,22 @@ public class BrilliantCommandHandler extends Command {
+             Command.broadcastCommandMessage(sender, prefix + "Brilliant configuration has been reloaded.");
+         } else if (args[0].equalsIgnoreCase("version")) {
+             Command.broadcastCommandMessage(sender, prefix + "This server is running " + Bukkit.getName() + " version " + Bukkit.getVersion() + " (Implementing API version " + Bukkit.getBukkitVersion() + ")");
++        } else if (args[0].equalsIgnoreCase("tps")) {
++            Command.broadcastCommandMessage(sender,
++                    prefix + "TPS Statistics:\n" +
++                            ChatColor.GOLD + "================================\n" +
++                            ChatColor.GOLD + "TPS from last 5 seconds: " + format(MinecraftServer.getServer().tps5s.getAverage()) + "\n" +
++                            ChatColor.GOLD + "TPS from last 1 minutes: " + format(MinecraftServer.getServer().tps1.getAverage()) + "\n" +
++                            ChatColor.GOLD + "TPS from last 10 minutes: " + format(MinecraftServer.getServer().tps5.getAverage()) + "\n" +
++                            ChatColor.GOLD + "TPS from last 15 minutes: " + format(MinecraftServer.getServer().tps15.getAverage()) + "\n" +
++                            ChatColor.GOLD + "================================"
++            );
+         }
+ 
+         return true;
+     }
++
++    private String format(double tps) {
++        return tps > MinecraftServer.TPS ? (ChatColor.GREEN + "✔ *" + String.format("%.2f", tps)) : (tps >= MinecraftServer.TPS * 0.95) ? (ChatColor.GREEN + "✔ " + String.format("%.2f", tps)) : (tps >= MinecraftServer.TPS * 0.75) ? (ChatColor.YELLOW + "⚠ " + String.format("%.2f", tps)) : (tps >= MinecraftServer.TPS * 0.5) ? (ChatColor.RED + "⚠ " + String.format("%.2f", tps)) : (ChatColor.DARK_RED + "❌ " + String.format("%.2f", tps));
++    }
+ }

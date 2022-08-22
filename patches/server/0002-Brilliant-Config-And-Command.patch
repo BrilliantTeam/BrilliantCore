@@ -1,0 +1,247 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: skyouo0727 <anwugame@gmail.com>
+Date: Mon, 22 Aug 2022 22:55:50 +0800
+Subject: [PATCH] Brilliant Config And Command
+
+
+diff --git a/src/main/java/engineer/skyouo/core/BrilliantCommandHandler.java b/src/main/java/engineer/skyouo/core/BrilliantCommandHandler.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..9a2fb6ecd939384b10ec82218f885f08fa0f1b8c
+--- /dev/null
++++ b/src/main/java/engineer/skyouo/core/BrilliantCommandHandler.java
+@@ -0,0 +1,55 @@
++package engineer.skyouo.core;
++
++import net.md_5.bungee.api.ChatColor;
++import net.minecraft.server.MinecraftServer;
++import org.bukkit.Bukkit;
++import org.bukkit.Location;
++import org.bukkit.command.Command;
++import org.bukkit.command.CommandSender;
++
++import java.util.Collections;
++import java.util.List;
++import java.util.stream.Collectors;
++import java.util.stream.Stream;
++
++public class BrilliantCommandHandler extends Command {
++
++    public BrilliantCommandHandler() {
++        super("brilliant");
++        this.description = "Brilliant related commands";
++        this.usageMessage = "/brilliant [reload | version]";
++        this.setPermission("bukkit.command.brilliant");
++    }
++
++    @Override
++    public List<String> tabComplete(CommandSender sender, String alias, String[] args, Location location) throws IllegalArgumentException {
++        if (args.length == 1) {
++            return Stream.of("reload", "version")
++                .filter(arg -> arg.startsWith(args[0].toLowerCase()))
++                .collect(Collectors.toList());
++        }
++
++        return Collections.emptyList();
++    }
++
++    @Override
++    public boolean execute(CommandSender sender, String commandLabel, String[] args) {
++        if (!testPermission(sender)) return true;
++        String prefix = ChatColor.of("#ffee07")  + "" +  ChatColor.BOLD  + "Brilliant ★ " + ChatColor.of("#ffee68");
++
++        if (args.length != 1) {
++            sender.sendMessage(prefix + "Usage: " + usageMessage);
++            args = new String[]{"version"};
++        }
++
++        if (args[0].equalsIgnoreCase("reload")) {
++            MinecraftServer console = MinecraftServer.getServer();
++            BrilliantConfig.init();
++            console.server.reloadCount++;
++            Command.broadcastCommandMessage(sender, prefix + "Brilliant configuration has been reloaded.");
++        } else if (args[0].equalsIgnoreCase("version")) {
++            Command.broadcastCommandMessage(sender, prefix + "This server is running " + Bukkit.getName() + " version " + Bukkit.getVersion() + " (Implementing API version " + Bukkit.getBukkitVersion() + ")");
++        }
++        return true;
++    }
++}
+diff --git a/src/main/java/engineer/skyouo/core/BrilliantConfig.java b/src/main/java/engineer/skyouo/core/BrilliantConfig.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..a52a625f0e0e9a3f6b799f43c926adbb47bfa7a8
+--- /dev/null
++++ b/src/main/java/engineer/skyouo/core/BrilliantConfig.java
+@@ -0,0 +1,148 @@
++package engineer.skyouo.core;
++
++import co.technove.flare.libs.com.google.common.collect.ImmutableMap;
++import com.google.common.base.Throwables;
++import net.minecraft.server.MinecraftServer;
++import org.bukkit.command.Command;
++import org.bukkit.configuration.ConfigurationSection;
++import org.bukkit.configuration.InvalidConfigurationException;
++import org.bukkit.configuration.file.YamlConfiguration;
++
++import java.io.File;
++import java.io.IOException;
++import java.lang.reflect.InvocationTargetException;
++import java.lang.reflect.Method;
++import java.lang.reflect.Modifier;
++import java.util.HashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.logging.Level;
++import java.util.logging.Logger;
++
++public class BrilliantConfig {
++    private static final Logger logger = Logger.getLogger("Brilliant");
++
++    private static final String HEADER = "This is the main configuration file for Brilliant.\n" +
++        "If you set some config wrongly, the playing experience might *BE AFFECTED*\n" +
++        "So think twice before you do it.";
++    private static File CONFIG_FILE;
++    public static YamlConfiguration config;
++
++    private static Map<String, Command> commands;
++
++    static int version;
++
++    public static void init() {
++        File configFile = new File("brilliant.yml");
++        CONFIG_FILE = configFile;
++        config = new YamlConfiguration();
++        try {
++            config.load(CONFIG_FILE);
++        } catch (IOException ignore) {
++
++        } catch (InvalidConfigurationException ex) {
++            logger.log(Level.SEVERE, "Could not load brilliant.yml, please correct your syntax errors", ex);
++            throw Throwables.propagate(ex);
++        }
++        config.options().header(HEADER);
++        config.options().copyDefaults(true);
++
++        version = getInt("config-version", 1);
++        set("config-version", 1);
++        readConfig(BrilliantConfig.class, null);
++    }
++
++    public static void lateInit() {
++        commands = new HashMap<>();
++        commands.put("brilliant", new BrilliantCommandHandler());
++        registerCommands();
++    }
++
++    protected static void log(String s) {
++        log(Level.INFO, s);
++    }
++
++    protected static void log(Level level, String s) {
++        logger.log(level, s);
++    }
++
++    public static void registerCommands() {
++        for (Map.Entry<String, Command> entry : commands.entrySet()) {
++            MinecraftServer.getServer().server.getCommandMap().register(entry.getKey(), "Brilliant", entry.getValue());
++        }
++    }
++
++    static void readConfig(Class<?> clazz, Object instance) {
++        for (Method method : clazz.getDeclaredMethods()) {
++            if (Modifier.isPrivate(method.getModifiers())) {
++                if (method.getParameterTypes().length == 0 && method.getReturnType() == Void.TYPE) {
++                    try {
++                        method.setAccessible(true);
++                        method.invoke(instance);
++                    } catch (InvocationTargetException ex) {
++                        throw Throwables.propagate(ex.getCause());
++                    } catch (Exception ex) {
++                        logger.log(Level.SEVERE, "Error invoking " + method, ex);
++                    }
++                }
++            }
++        }
++
++        try {
++            config.save(CONFIG_FILE);
++        } catch (IOException ex) {
++            logger.log(Level.SEVERE, "Could not save " + CONFIG_FILE, ex);
++        }
++    }
++
++    private static void set(String path, Object val) {
++        config.addDefault(path, val);
++        config.set(path, val);
++    }
++
++    private static String getString(String path, String def) {
++        config.addDefault(path, def);
++        return config.getString(path, config.getString(path));
++    }
++
++    private static boolean getBoolean(String path, boolean def) {
++        config.addDefault(path, def);
++        return config.getBoolean(path, config.getBoolean(path));
++    }
++
++    private static double getDouble(String path, double def) {
++        config.addDefault(path, def);
++        return config.getDouble(path, config.getDouble(path));
++    }
++
++    private static int getInt(String path, int def) {
++        config.addDefault(path, def);
++        return config.getInt(path, config.getInt(path));
++    }
++
++    private static <T> List getList(String path, T def) {
++        config.addDefault(path, def);
++        return config.getList(path, config.getList(path));
++    }
++
++    static Map<String, Object> getMap(String path, Map<String, Object> def) {
++        if (def != null && config.getConfigurationSection(path) == null) {
++            config.addDefault(path, def);
++            return def;
++        }
++        return toMap(config.getConfigurationSection(path));
++    }
++
++    private static Map<String, Object> toMap(ConfigurationSection section) {
++        ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
++        if (section != null) {
++            for (String key : section.getKeys(false)) {
++                Object obj = section.get(key);
++                if (obj != null) {
++                    builder.put(key, obj instanceof ConfigurationSection val ? toMap(val) : obj);
++                }
++            }
++        }
++        return builder.build();
++    }
++}
+diff --git a/src/main/java/net/minecraft/server/Main.java b/src/main/java/net/minecraft/server/Main.java
+index 0a843e0afbcb1af8e2641515eb244b791b819b8c..f8fb9ae95b163ad4e1f093e5b6723bc06a040456 100644
+--- a/src/main/java/net/minecraft/server/Main.java
++++ b/src/main/java/net/minecraft/server/Main.java
+@@ -156,6 +156,8 @@ public class Main {
+             LevelStorageSource.LevelStorageAccess convertable_conversionsession = convertable.createAccess(s, LevelStem.OVERWORLD);
+             LevelSummary worldinfo = convertable_conversionsession.getSummary();
+ 
++            engineer.skyouo.core.BrilliantConfig.init(); // Brilliant - Load before MinecraftServer was created
++
+             if (worldinfo != null) {
+                 if (worldinfo.requiresManualConversion()) {
+                     Main.LOGGER.info("This world must be opened in an older version (like 1.6.4) to be safely converted");
+diff --git a/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java b/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
+index 519883c5549744e047a8a96afee142746fcb49cd..2cf9fbf6e6abc385fa7e4afe31db5e4145e29593 100644
+--- a/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
++++ b/src/main/java/net/minecraft/server/dedicated/DedicatedServer.java
+@@ -229,6 +229,8 @@ public class DedicatedServer extends MinecraftServer implements ServerInterface
+         gg.pufferfish.pufferfish.PufferfishConfig.load(); // Pufferfish
+         gg.pufferfish.pufferfish.PufferfishCommand.init(); // Pufferfish
+ 
++        engineer.skyouo.core.BrilliantConfig.lateInit(); // Brilliant
++
+         this.setPvpAllowed(dedicatedserverproperties.pvp);
+         this.setFlightAllowed(dedicatedserverproperties.allowFlight);
+         this.setMotd(dedicatedserverproperties.motd);

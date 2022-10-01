@@ -14,7 +14,7 @@ function getCommits() {
 set -e
 PS1="$"
 
-pufferfishHash="$2"
+pufferfishHash="$1"
 
 pufferfish=""
 updated=""
@@ -33,7 +33,7 @@ fi
 
 
 disclaimer="Upstream has released updates that appear to apply and compile correctly"
-log="Updated Upstream ($updated)\n\n${disclaimer}${logsuffix}"
+log="Updated Upstream (Pufferfish)\n\n${disclaimer}${logsuffix}"
 
 echo -e "$log" | git commit -F -
 

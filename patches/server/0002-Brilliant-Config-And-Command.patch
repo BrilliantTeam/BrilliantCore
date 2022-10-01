@@ -220,10 +220,10 @@ index 0000000000000000000000000000000000000000..a52a625f0e0e9a3f6b799f43c926adbb
 +    }
 +}
 diff --git a/src/main/java/net/minecraft/server/Main.java b/src/main/java/net/minecraft/server/Main.java
-index 0a843e0afbcb1af8e2641515eb244b791b819b8c..f8fb9ae95b163ad4e1f093e5b6723bc06a040456 100644
+index 5962f7a2b185d7d54a0f9e341a4fdf6e6f1c1ec5..8d341c6675fb0823e155c305ae548a78465bdd3d 100644
 --- a/src/main/java/net/minecraft/server/Main.java
 +++ b/src/main/java/net/minecraft/server/Main.java
-@@ -156,6 +156,8 @@ public class Main {
+@@ -173,6 +173,8 @@ public class Main {
              LevelStorageSource.LevelStorageAccess convertable_conversionsession = convertable.createAccess(s, LevelStem.OVERWORLD);
              LevelSummary worldinfo = convertable_conversionsession.getSummary();
  

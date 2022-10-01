@@ -119,10 +119,10 @@ index 325b294b51942a90715ab683b8b5d35529755697..26aad515cfde30322a2e9a4ca3c8f72f
              this.status.setPlayers(new ServerStatus.Players(this.getMaxPlayers(), this.getPlayerCount()));
              if (!this.hidesOnlinePlayers()) {
 diff --git a/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java b/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java
-index 9aab29dd7a09c306d6c0e1e8143daf005d611d65..a4dad949ddf5fd7ad0469e32a8d2ecc23ffa91a6 100644
+index cc55cb14f2d0f656213be25a1e428132871ac5dd..96e03b099f5a37b270967e18698db6e54b9b5d14 100644
 --- a/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java
 +++ b/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java
-@@ -373,7 +373,7 @@ public class ServerGamePacketListenerImpl implements ServerPlayerConnection, Tic
+@@ -367,7 +367,7 @@ public class ServerGamePacketListenerImpl implements ServerPlayerConnection, Tic
          ++this.tickCount;
          this.knownMovePacketCount = this.receivedMovePacketCount;
          if (this.clientIsFloating && !this.player.isSleeping() && !this.player.isPassenger()) {
@@ -131,7 +131,7 @@ index 9aab29dd7a09c306d6c0e1e8143daf005d611d65..a4dad949ddf5fd7ad0469e32a8d2ecc2
                  ServerGamePacketListenerImpl.LOGGER.warn("{} was kicked for floating too long!", this.player.getName().getString());
                  this.disconnect(io.papermc.paper.configuration.GlobalConfiguration.get().messages.kick.flyingPlayer, org.bukkit.event.player.PlayerKickEvent.Cause.FLYING_PLAYER); // Paper - use configurable kick message & kick event cause
                  return;
-@@ -392,7 +392,7 @@ public class ServerGamePacketListenerImpl implements ServerPlayerConnection, Tic
+@@ -386,7 +386,7 @@ public class ServerGamePacketListenerImpl implements ServerPlayerConnection, Tic
              this.vehicleLastGoodY = this.lastVehicle.getY();
              this.vehicleLastGoodZ = this.lastVehicle.getZ();
              if (this.clientVehicleIsFloating && this.player.getRootVehicle().getControllingPassenger() == this.player) {
@@ -141,7 +141,7 @@ index 9aab29dd7a09c306d6c0e1e8143daf005d611d65..a4dad949ddf5fd7ad0469e32a8d2ecc2
                      this.disconnect(io.papermc.paper.configuration.GlobalConfiguration.get().messages.kick.flyingVehicle, org.bukkit.event.player.PlayerKickEvent.Cause.FLYING_VEHICLE); // Paper - use configurable kick message & kick event cause
                      return;
 diff --git a/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java b/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
-index 88a849a21d6e39fd70f6e7b554528da1a5a7dd57..88a7d77aaa6587817d4c3c20f961f7319a1140aa 100644
+index 855eac5e6f3a99a2fc31ad0e02c496d4b5c60622..e8413a86d4f290b040727b56d458538a99080dc6 100644
 --- a/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
 +++ b/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
 @@ -101,7 +101,7 @@ public class ServerLoginPacketListenerImpl implements TickablePacketListener, Se

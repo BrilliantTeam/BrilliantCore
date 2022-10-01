@@ -153,3 +153,16 @@ index 855eac5e6f3a99a2fc31ad0e02c496d4b5c60622..e8413a86d4f290b040727b56d458538a
              this.disconnect(Component.translatable("multiplayer.disconnect.slow_login"));
          }
  
+diff --git a/src/main/java/org/spigotmc/TicksPerSecondCommand.java b/src/main/java/org/spigotmc/TicksPerSecondCommand.java
+index 9bede6a26c08ede063c7a38f1149c811df14b258..b423073daf3e6436ee784e510c349f84ace388dd 100644
+--- a/src/main/java/org/spigotmc/TicksPerSecondCommand.java
++++ b/src/main/java/org/spigotmc/TicksPerSecondCommand.java
+@@ -47,7 +47,6 @@ public class TicksPerSecondCommand extends Command
+     private boolean hasShownMemoryWarning; // Paper
+     private static String format(double tps) // Paper - Made static
+     {
+-        return ( ( tps > 18.0 ) ? ChatColor.GREEN : ( tps > 16.0 ) ? ChatColor.YELLOW : ChatColor.RED ).toString()
+-                + ( ( tps > 21.0 ) ? "*" : "" ) + Math.min( Math.round( tps * 100.0 ) / 100.0, 20.0 ); // Paper - only print * at 21, we commonly peak to 20.02 as the tick sleep is not accurate enough, stop the noise
++        return ((tps > (MinecraftServer.TPS * 0.9)) ? ChatColor.GREEN : (tps > (MinecraftServer.TPS * 0.8)) ? ChatColor.YELLOW : ChatColor.RED).toString() + ((tps > Integer.valueOf(MinecraftServer.TPS).doubleValue()) ? "*" : "") + Math.min(Math.round(tps * 100.0) / 100.0, Integer.valueOf(MinecraftServer.TPS).doubleValue()); // Paper - only print * at 21, we commonly peak to 20.02 as the tick sleep is not accurate enough, stop the noise // Brilliant - Overwrite it since tps is unlocked
+     }
+ }

@@ -1,0 +1,154 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: MagicTeaMC <oneowo87@gmail.com>
+Date: Sun, 19 Mar 2023 12:18:24 +0800
+Subject: [PATCH] Unlocking TPS Limits
+
+
+diff --git a/src/main/java/com/destroystokyo/paper/gui/RAMDetails.java b/src/main/java/com/destroystokyo/paper/gui/RAMDetails.java
+index fa56cd09102a89692b42f1d14257990508c5c720..78d9c80412f511de66b95c4d3bdf788d76f5e8e6 100644
+--- a/src/main/java/com/destroystokyo/paper/gui/RAMDetails.java
++++ b/src/main/java/com/destroystokyo/paper/gui/RAMDetails.java
+@@ -81,6 +81,6 @@ public class RAMDetails extends JList<String> {
+     }
+ 
+     private static String format(double tps) {
+-        return ( ( tps > 21.0 ) ? "*" : "" ) + Math.min( Math.round( tps * 100.0 ) / 100.0, 20.0 );
++        return ( ( tps > (MinecraftServer.TPS * 1.05) ) ? "*" : "" ) + Math.min( Math.round( tps * 100.0 ) / 100.0, MinecraftServer.TPS );
+     }
+ }
+diff --git a/src/main/java/io/papermc/paper/command/MSPTCommand.java b/src/main/java/io/papermc/paper/command/MSPTCommand.java
+index 8b5293b0c696ef21d0101493ffa41b60bf0bc86b..704839ae9a67ee94634f7422a0258cc4cd95879d 100644
+--- a/src/main/java/io/papermc/paper/command/MSPTCommand.java
++++ b/src/main/java/io/papermc/paper/command/MSPTCommand.java
+@@ -97,6 +97,6 @@ public final class MSPTCommand extends Command {
+     }
+ 
+     private static Component getColor(double avg) {
+-        return text(DF.format(avg), avg >= 50 ? RED : avg >= 40 ? YELLOW : GREEN);
++        return text(DF.format(avg), avg >= MinecraftServer.MS_PER_TICK ? RED : avg >= (MinecraftServer.MS_PER_TICK * 0.8) ? YELLOW : GREEN);
+     }
+ }
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index 13c60519be27edd71955a1eb2dc2b99fe904e5e5..d2a09d1572da549708845ab37c4a05f083a0e87d 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -10,6 +10,7 @@ import com.google.common.collect.Maps;
+ import com.google.common.collect.Sets;
+ import com.mojang.authlib.GameProfile;
+ import com.mojang.authlib.GameProfileRepository;
++import engineer.skyouo.core.BrilliantConfig;
+ import com.mojang.authlib.minecraft.MinecraftSessionService;
+ import com.mojang.datafixers.DataFixer;
+ import com.mojang.logging.LogUtils;
+@@ -201,7 +202,6 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+     public static final String VANILLA_BRAND = "vanilla";
+     private static final float AVERAGE_TICK_TIME_SMOOTHING = 0.8F;
+     private static final int TICK_STATS_SPAN = 100;
+-    public static final int MS_PER_TICK = 50;
+     private static final int OVERLOADED_THRESHOLD = 2000;
+     private static final int OVERLOADED_WARNING_INTERVAL = 15000;
+     private static final long STATUS_EXPIRE_TIME_NS = 5000000000L;
+@@ -298,10 +298,10 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+     public boolean forceTicks; // Paper
+     // CraftBukkit end
+     // Spigot start
+-    public static final int TPS = 20;
+-    public static final int TICK_TIME = 1000000000 / MinecraftServer.TPS;
+-    private static final int SAMPLE_INTERVAL = 20; // Paper
+-    public final double[] recentTps = new double[ 3 ];
++    public static final int TPS = BrilliantConfig.tpsLimit; // Brilliant
++    public static final int TICK_TIME = 1000000000 / MinecraftServer.TPS; // Brilliant
++    public static final double MS_PER_TICK = (double) 1000 / BrilliantConfig.tpsLimit; // Brilliant
++    private static final int SAMPLE_INTERVAL = BrilliantConfig.tpsLimit; // Paper // Brilliant
+     // Spigot end
+     public final io.papermc.paper.configuration.PaperConfigurations paperConfigurations;
+     public static long currentTickLong = 0L; // Paper
+@@ -1136,12 +1136,12 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+                 // Paper end - rewrite chunk system
+                 long i = ((curTime = System.nanoTime()) / (1000L * 1000L)) - this.nextTickTime; // Paper
+ 
+-                if (i > 5000L && this.nextTickTime - this.lastOverloadWarning >= 30000L) { // CraftBukkit
+-                    long j = i / 50L;
++                if (i > (100L * MS_PER_TICK) && this.nextTickTime - this.lastOverloadWarning >= (600L * MS_PER_TICK)) { // CraftBukkit
++                    double j = i / MS_PER_TICK; // Brilliant - int to double
+ 
+                     if (this.server.getWarnOnOverload()) // CraftBukkit
+                     MinecraftServer.LOGGER.warn("Can't keep up! Is the server overloaded? Running {}ms or {} ticks behind", i, j);
+-                    this.nextTickTime += j * 50L;
++                    this.nextTickTime += j * MS_PER_TICK;
+                     this.lastOverloadWarning = this.nextTickTime;
+                 }
+ 
+@@ -1169,13 +1169,13 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+ 
+                 //MinecraftServer.currentTick = (int) (System.currentTimeMillis() / 50); // CraftBukkit // Paper - don't overwrite current tick time
+                 lastTick = curTime;
+-                this.nextTickTime += 50L;
++                this.nextTickTime += MS_PER_TICK;
+                 this.startMetricsRecordingTick();
+                 this.profiler.push("tick");
+                 this.tickServer(this::haveTime);
+                 this.profiler.popPush("nextTickWait");
+                 this.mayHaveDelayedTasks = true;
+-                this.delayedTasksMaxNextTickTime = Math.max(Util.getMillis() + 50L, this.nextTickTime);
++                this.delayedTasksMaxNextTickTime = (long) Math.max(Util.getMillis() + MS_PER_TICK, this.nextTickTime);
+                 this.waitUntilNextTick();
+                 this.profiler.pop();
+                 this.endMetricsRecordingTick();
+@@ -1397,7 +1397,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+ 
+         ++this.tickCount;
+         this.tickChildren(shouldKeepTicking);
+-        if (i - this.lastServerStatus >= 5000000000L) {
++        if (i - this.lastServerStatus >= (MS_PER_TICK * 100000000L)) {
+             this.lastServerStatus = i;
+             this.status.setPlayers(new ServerStatus.Players(this.getMaxPlayers(), this.getPlayerCount()));
+             if (!this.hidesOnlinePlayers()) {
+diff --git a/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java b/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java
+index 2ca19bbe3a71091843fc7175d726c70321d1fee3..d95b49059f48a1edbee576bde0b34c5305bfb465 100644
+--- a/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java
++++ b/src/main/java/net/minecraft/server/network/ServerGamePacketListenerImpl.java
+@@ -356,7 +356,7 @@ public class ServerGamePacketListenerImpl implements ServerPlayerConnection, Tic
+         ++this.tickCount;
+         this.knownMovePacketCount = this.receivedMovePacketCount;
+         if (this.clientIsFloating && !this.player.isSleeping() && !this.player.isPassenger()) {
+-            if (++this.aboveGroundTickCount > 80) {
++            if (++this.aboveGroundTickCount > MinecraftServer.TPS * 4) {
+                 ServerGamePacketListenerImpl.LOGGER.warn("{} was kicked for floating too long!", this.player.getName().getString());
+                 this.disconnect(io.papermc.paper.configuration.GlobalConfiguration.get().messages.kick.flyingPlayer, org.bukkit.event.player.PlayerKickEvent.Cause.FLYING_PLAYER); // Paper - use configurable kick message & kick event cause
+                 return;
+@@ -375,7 +375,7 @@ public class ServerGamePacketListenerImpl implements ServerPlayerConnection, Tic
+             this.vehicleLastGoodY = this.lastVehicle.getY();
+             this.vehicleLastGoodZ = this.lastVehicle.getZ();
+             if (this.clientVehicleIsFloating && this.player.getRootVehicle().getControllingPassenger() == this.player) {
+-                if (++this.aboveGroundVehicleTickCount > 80) {
++                if (++this.aboveGroundVehicleTickCount > MinecraftServer.TPS * 4) {
+                     ServerGamePacketListenerImpl.LOGGER.warn("{} was kicked for floating a vehicle too long!", this.player.getName().getString());
+                     this.disconnect(io.papermc.paper.configuration.GlobalConfiguration.get().messages.kick.flyingVehicle, org.bukkit.event.player.PlayerKickEvent.Cause.FLYING_VEHICLE); // Paper - use configurable kick message & kick event cause
+                     return;
+diff --git a/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java b/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
+index a25306fe8a35bb70a490e6a0c01d0340bbc0d781..a91a1ab2d2447c69e533fda143957d6d30cbd41b 100644
+--- a/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
++++ b/src/main/java/net/minecraft/server/network/ServerLoginPacketListenerImpl.java
+@@ -95,7 +95,7 @@ public class ServerLoginPacketListenerImpl implements ServerLoginPacketListener,
+             }
+         }
+ 
+-        if (this.tick++ == 600) {
++        if (this.tick++ == 30 * MinecraftServer.TPS) {
+             this.disconnect(Component.translatable("multiplayer.disconnect.slow_login"));
+         }
+ 
+diff --git a/src/main/java/org/spigotmc/TicksPerSecondCommand.java b/src/main/java/org/spigotmc/TicksPerSecondCommand.java
+index 9bede6a26c08ede063c7a38f1149c811df14b258..b423073daf3e6436ee784e510c349f84ace388dd 100644
+--- a/src/main/java/org/spigotmc/TicksPerSecondCommand.java
++++ b/src/main/java/org/spigotmc/TicksPerSecondCommand.java
+@@ -47,7 +47,6 @@ public class TicksPerSecondCommand extends Command
+     private boolean hasShownMemoryWarning; // Paper
+     private static String format(double tps) // Paper - Made static
+     {
+-        return ( ( tps > 18.0 ) ? ChatColor.GREEN : ( tps > 16.0 ) ? ChatColor.YELLOW : ChatColor.RED ).toString()
+-                + ( ( tps > 21.0 ) ? "*" : "" ) + Math.min( Math.round( tps * 100.0 ) / 100.0, 20.0 ); // Paper - only print * at 21, we commonly peak to 20.02 as the tick sleep is not accurate enough, stop the noise
++        return ((tps > (MinecraftServer.TPS * 0.9)) ? ChatColor.GREEN : (tps > (MinecraftServer.TPS * 0.8)) ? ChatColor.YELLOW : ChatColor.RED).toString() + ((tps > Integer.valueOf(MinecraftServer.TPS).doubleValue()) ? "*" : "") + Math.min(Math.round(tps * 100.0) / 100.0, Integer.valueOf(MinecraftServer.TPS).doubleValue()); // Paper - only print * at 21, we commonly peak to 20.02 as the tick sleep is not accurate enough, stop the noise // Brilliant - Overwrite it since tps is unlocked
+     }
+ }

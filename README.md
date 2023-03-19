@@ -3,7 +3,7 @@
 ## 功能
 - 無限 TPS
 ## 下載
-前往 [Releases](https://github.com/MagicTeaMC/BrilliantCore/releases) 下載
+前往 [Releases](https://github.com/BrilliantServer/BrilliantCore/releases) 下載
 ## 編譯
 ```
 ./gradlew applyPatches && ./gradlew createReobfPaperclipJar
